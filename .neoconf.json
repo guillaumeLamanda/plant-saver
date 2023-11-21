@@ -1,0 +1,8 @@
+{
+  "lspconfig": {
+    "rust_analyzer": {
+      "rust-analyzer.cargo.buildScripts.enable": true,
+      "rust-analyzer.procMacro.enable": true
+    }
+  }
+}
