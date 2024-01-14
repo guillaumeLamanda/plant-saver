@@ -1,6 +1,10 @@
-use std::{time::Duration, thread};
+use std::{thread, time::Duration};
 
-use esp_idf_svc::hal::{prelude::Peripherals, adc::{AdcDriver, config::Config, AdcChannelDriver, attenuation}, gpio::{ADCPin, PinDriver}};
+use esp_idf_svc::hal::{
+    adc::{attenuation, config::Config, AdcChannelDriver, AdcDriver},
+    gpio::PinDriver,
+    prelude::Peripherals,
+};
 
 const MAX_DRY: u16 = 2491;
 const MAX_WET: u16 = 741;
@@ -10,7 +14,6 @@ const FULL_PRECENTAGE: f32 = 100.0;
 const NO_PRECENTAGE: f32 = 0.0;
 
 fn main() {
-    log::info!("Hello, world!");
     // It is necessary to call this function once. Otherwise some patches to the runtime
     // implemented by esp-idf-sys might not link properly. See https://github.com/esp-rs/esp-idf-template/issues/71
     esp_idf_svc::sys::link_patches();
@@ -18,7 +21,6 @@ fn main() {
     // Bind the log crate to the ESP Logging facilities
     esp_idf_svc::log::EspLogger::initialize_default();
     let peripherals = Peripherals::take().unwrap();
-
 
     let adc_config = Config::new();
     #[cfg(not(esp32))]
@@ -29,7 +31,7 @@ fn main() {
 
     #[cfg(not(esp32))]
     let mut adc_pin: AdcChannelDriver<{ attenuation::DB_11 }, _> =
-    AdcChannelDriver::new(peripherals.pins.gpio4).unwrap();
+        AdcChannelDriver::new(peripherals.pins.gpio4).unwrap();
 
     #[cfg(not(esp32))]
     let mut led = PinDriver::output(peripherals.pins.gpio5).unwrap();
@@ -39,7 +41,7 @@ fn main() {
 
     #[cfg(esp32)]
     let mut adc_pin: AdcChannelDriver<{ attenuation::DB_11 }, _> =
-    AdcChannelDriver::new(peripherals.pins.gpio13).unwrap();
+        AdcChannelDriver::new(peripherals.pins.gpio13).unwrap();
 
     loop {
         #[cfg(debug_assertions)]
@@ -52,17 +54,16 @@ fn main() {
         let adc_value = adc.read(&mut adc_pin).unwrap();
 
         let value_diff = MAX_DRY - adc_value;
-        let value = ( (value_diff as f32 / MOISTURE_RANGE as f32) * FULL_PRECENTAGE ).trunc();
+        let value = ((value_diff as f32 / MOISTURE_RANGE as f32) * FULL_PRECENTAGE).trunc();
         match value {
-            value if value < 60.0 => { 
+            value if value < 60.0 => {
                 println!("Arose moi ! (humidity:{})", value);
-                led.set_high().unwrap() 
-            },
-            _ => { 
+                led.set_high().unwrap()
+            }
+            _ => {
                 println!("I'm fine ! (humidity:{})", value);
-                led.set_low().unwrap() 
-            },
+                led.set_low().unwrap()
+            }
         }
     }
-
 }
