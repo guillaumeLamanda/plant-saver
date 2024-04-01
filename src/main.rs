@@ -1,50 +1,42 @@
-use std::{thread, time::Duration};
-
-use esp_idf_svc::hal::{
-    adc::{attenuation, config::Config, AdcChannelDriver, AdcDriver},
-    gpio::PinDriver,
-    prelude::Peripherals,
+use std::{
+    ops::{Div, Mul},
+    thread,
+    time::Duration,
+    u16,
 };
 
-const MAX_DRY: u16 = 2491;
-const MAX_WET: u16 = 741;
-
-const MOISTURE_RANGE: u16 = MAX_DRY - MAX_WET;
-const FULL_PRECENTAGE: f32 = 100.0;
-const NO_PRECENTAGE: f32 = 0.0;
-
+#[cfg(not(esp_idf_version_major = "4"))]
 fn main() {
+    use esp_idf_svc::hal::{
+        adc::{
+            attenuation,
+            oneshot::{config::AdcChannelConfig, AdcChannelDriver, AdcDriver},
+        },
+        gpio::PinDriver,
+        peripherals::Peripherals,
+    };
+
     // It is necessary to call this function once. Otherwise some patches to the runtime
     // implemented by esp-idf-sys might not link properly. See https://github.com/esp-rs/esp-idf-template/issues/71
-    esp_idf_svc::sys::link_patches();
+    // esp_idf_svc::sys::link_patches();
 
     // Bind the log crate to the ESP Logging facilities
     esp_idf_svc::log::EspLogger::initialize_default();
     let peripherals = Peripherals::take().unwrap();
 
-    let adc_config = Config::new();
-    #[cfg(not(esp32))]
-    let mut adc = AdcDriver::new(peripherals.adc1, &adc_config).unwrap();
+    let adc_channel_config = AdcChannelConfig {
+        attenuation: attenuation::DB_11,
+        calibration: true,
+        ..Default::default()
+    };
 
-    #[cfg(esp32)]
-    let mut adc = AdcDriver::new(peripherals.adc2, &adc_config).unwrap();
+    let adc = AdcDriver::new(peripherals.adc2).unwrap();
 
-    #[cfg(not(esp32))]
-    let mut adc_pin: AdcChannelDriver<{ attenuation::DB_11 }, _> =
-        AdcChannelDriver::new(peripherals.pins.gpio4).unwrap();
-
-    #[cfg(not(esp32))]
-    let mut moisture_let = PinDriver::output(peripherals.pins.gpio5).unwrap();
-
-    #[cfg(esp32)]
     let mut moisture_led = PinDriver::output(peripherals.pins.gpio12).unwrap();
     let mut luminosity_led = PinDriver::output(peripherals.pins.gpio4).unwrap();
 
-    luminosity_led.set_high().unwrap();
-
-    #[cfg(esp32)]
-    let mut moisture_adc_pin: AdcChannelDriver<{ attenuation::DB_11 }, _> =
-        AdcChannelDriver::new(peripherals.pins.gpio13).unwrap();
+    let mut moisture_adc_pin =
+        AdcChannelDriver::new(&adc, peripherals.pins.gpio13, &adc_channel_config).unwrap();
 
     loop {
         #[cfg(debug_assertions)]
@@ -52,21 +44,36 @@ fn main() {
         #[cfg(not(debug_assertions))]
         let wait_time = 1000 * 60 * 10;
 
-        // you can change the sleep duration depending on how often you want to sample
         thread::sleep(Duration::from_millis(wait_time));
         let adc_value = adc.read(&mut moisture_adc_pin).unwrap();
+        println!("adc_value: {}", adc_value);
 
-        let value_diff = MAX_DRY - adc_value;
-        let value = ((value_diff as f32 / MOISTURE_RANGE as f32) * FULL_PRECENTAGE).trunc();
+        // luminosity_led.set_high().unwrap();
+        // value in water : 709
+        // value when the humidity is 60%: 2752
+        println!("row value: {}", adc_value);
+        let value = moisture_voltage_to_humidity_level(adc_value);
+        println!("humidity: {}", value);
+
         match value {
-            value if value < 60.0 => {
-                // println!("Arose moi ! (humidity:{})", value);
+            value if value < 60 => {
+                println!("Arose moi ! (humidity:{})", value);
                 moisture_led.set_high().unwrap()
             }
             _ => {
-                // println!("I'm fine ! (humidity:{})", value);
+                println!("I'm fine ! (humidity:{})", value);
                 moisture_led.set_low().unwrap()
             }
         }
     }
+}
+
+fn moisture_voltage_to_humidity_level(voltage: u16) -> u16 {
+    const MAX_DRY: f32 = 4095.0;
+    const MAX_WET: f32 = 700.0;
+
+    // linear conversion
+    let value_diff: f32 = MAX_DRY - voltage as f32;
+    let x = value_diff.div(MAX_DRY - MAX_WET).mul(100.0);
+    x as u16
 }
