@@ -34,13 +34,16 @@ fn main() {
         AdcChannelDriver::new(peripherals.pins.gpio4).unwrap();
 
     #[cfg(not(esp32))]
-    let mut led = PinDriver::output(peripherals.pins.gpio5).unwrap();
+    let mut moisture_let = PinDriver::output(peripherals.pins.gpio5).unwrap();
 
     #[cfg(esp32)]
-    let mut led = PinDriver::output(peripherals.pins.gpio12).unwrap();
+    let mut moisture_led = PinDriver::output(peripherals.pins.gpio12).unwrap();
+    let mut luminosity_led = PinDriver::output(peripherals.pins.gpio4).unwrap();
+
+    luminosity_led.set_high().unwrap();
 
     #[cfg(esp32)]
-    let mut adc_pin: AdcChannelDriver<{ attenuation::DB_11 }, _> =
+    let mut moisture_adc_pin: AdcChannelDriver<{ attenuation::DB_11 }, _> =
         AdcChannelDriver::new(peripherals.pins.gpio13).unwrap();
 
     loop {
@@ -51,18 +54,18 @@ fn main() {
 
         // you can change the sleep duration depending on how often you want to sample
         thread::sleep(Duration::from_millis(wait_time));
-        let adc_value = adc.read(&mut adc_pin).unwrap();
+        let adc_value = adc.read(&mut moisture_adc_pin).unwrap();
 
         let value_diff = MAX_DRY - adc_value;
         let value = ((value_diff as f32 / MOISTURE_RANGE as f32) * FULL_PRECENTAGE).trunc();
         match value {
             value if value < 60.0 => {
-                println!("Arose moi ! (humidity:{})", value);
-                led.set_high().unwrap()
+                // println!("Arose moi ! (humidity:{})", value);
+                moisture_led.set_high().unwrap()
             }
             _ => {
-                println!("I'm fine ! (humidity:{})", value);
-                led.set_low().unwrap()
+                // println!("I'm fine ! (humidity:{})", value);
+                moisture_led.set_low().unwrap()
             }
         }
     }

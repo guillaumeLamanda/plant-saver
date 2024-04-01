@@ -11,3 +11,7 @@
 - [espup](https://github.com/esp-rs/espup)
 
 ## Commands
+
+- read output: `ESPFLASH_PORT=/dev/tty.usbserial-0001 espflash monitor`
+- run: `cargo run`
+- build: `cargo build`
