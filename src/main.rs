@@ -34,6 +34,9 @@ fn main() {
 
     let mut moisture_led = PinDriver::output(peripherals.pins.gpio12).unwrap();
     let mut luminosity_led = PinDriver::output(peripherals.pins.gpio4).unwrap();
+    luminosity_led.set_high().unwrap();
+    thread::sleep(Duration::from_secs(1));
+    luminosity_led.set_low().unwrap();
 
     let mut moisture_adc_pin =
         AdcChannelDriver::new(&adc, peripherals.pins.gpio13, &adc_channel_config).unwrap();
@@ -56,7 +59,7 @@ fn main() {
         println!("humidity: {}", value);
 
         match value {
-            value if value < 60 => {
+            value if value < 65 => {
                 println!("Arose moi ! (humidity:{})", value);
                 moisture_led.set_high().unwrap()
             }
