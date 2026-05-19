@@ -3,60 +3,47 @@
   "author": "Guillaume Lamanda",
   "editor": "wokwi",
   "parts": [
+    { "type": "board-esp32-devkit-v1", "id": "esp", "top": 0, "left": 100, "attrs": {} },
     {
-      "type": "board-esp32-devkit-v1",
-      "id": "esp",
-      "top": 0,
-      "left": 100,
-      "attrs": {}
-    },
-    {
-      "type": "potentiometer",
+      "type": "wokwi-potentiometer",
       "id": "moisture_pot",
       "top": -100,
       "left": -150,
       "attrs": { "value": "50" }
     },
     {
-      "type": "led",
+      "type": "wokwi-led",
       "id": "moisture_led",
-      "top": -50,
-      "left": 400,
+      "top": -99.6,
+      "left": -53.8,
       "attrs": { "color": "red" }
     },
     {
-      "type": "led",
+      "type": "wokwi-led",
       "id": "luminosity_led",
-      "top": 50,
-      "left": 400,
+      "top": -3.6,
+      "left": 435.8,
       "attrs": { "color": "green" }
     },
     {
-      "type": "resistor",
+      "type": "wokwi-resistor",
       "id": "r1",
-      "top": -50,
-      "left": 350,
-      "attrs": { "resistance": "220" }
+      "top": -34.45,
+      "left": 115.2,
+      "attrs": { "value": "220" }
     },
-    {
-      "type": "resistor",
-      "id": "r2",
-      "top": 50,
-      "left": 350,
-      "attrs": { "resistance": "220" }
-    }
+    { "type": "wokwi-resistor", "id": "r2", "top": 50, "left": 350, "attrs": { "value": "220" } }
   ],
   "connections": [
-    ["moisture_pot:SIG", "esp:13", "orange", ["v0"]],
+    ["moisture_pot:SIG", "esp:D13", "orange", ["v0"]],
     ["moisture_pot:VCC", "esp:3V3", "red", ["v0"]],
     ["moisture_pot:GND", "esp:GND.1", "black", ["v0"]],
-
-    ["esp:12", "r1:1", "red", ["v0"]],
+    ["esp:D12", "r1:1", "red", ["h-56.8", "v-156.32"]],
     ["r1:2", "moisture_led:A", "red", ["v0"]],
     ["moisture_led:C", "esp:GND.2", "black", ["v0"]],
-
-    ["esp:4", "r2:1", "green", ["v0"]],
+    ["esp:D4", "r2:1", "green", ["v0"]],
     ["r2:2", "luminosity_led:A", "green", ["v0"]],
-    ["luminosity_led:C", "esp:GND.3", "black", ["v0"]]
-  ]
+    ["luminosity_led:C", "esp:GND.2", "black", ["v0"]]
+  ],
+  "dependencies": {}
 }
