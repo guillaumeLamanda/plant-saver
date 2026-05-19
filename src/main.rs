@@ -10,7 +10,7 @@ fn main() {
     use esp_idf_svc::hal::{
         adc::{
             attenuation,
-            oneshot::{config::AdcChannelConfig, AdcChannelDriver, AdcDriver},
+            oneshot::{config::AdcChannelConfig, config::Calibration, AdcChannelDriver, AdcDriver},
         },
         gpio::PinDriver,
         peripherals::Peripherals,
@@ -25,8 +25,8 @@ fn main() {
     let peripherals = Peripherals::take().unwrap();
 
     let adc_channel_config = AdcChannelConfig {
-        attenuation: attenuation::DB_11,
-        calibration: true,
+        attenuation: attenuation::DB_12,
+        calibration: Calibration::Line,
         ..Default::default()
     };
 
