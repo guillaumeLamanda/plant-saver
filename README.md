@@ -21,6 +21,14 @@
 - run: `cargo run`
 - build: `cargo build`
 
+## Simulation (Wokwi)
+
+- Install: `pip install wokwi-cli`
+- Build firmware: `cargo build --release`
+- Run simulation: `wokwi-cli` from repo root
+- Adjust the potentiometer to simulate moisture changes
+- Web project: https://wokwi.com/projects/323845300685898322
+
 ## Ressources
 
 [Pants API - Trefle](https://docs.trefle.io/reference/#tag/Plants/operation/getPlant)
