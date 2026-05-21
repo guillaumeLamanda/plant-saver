@@ -2,15 +2,16 @@ use std::{
     ops::{Div, Mul},
     thread,
     time::Duration,
-    u16,
 };
 
-#[cfg(not(esp_idf_version_major = "4"))]
 fn main() {
     use esp_idf_svc::hal::{
         adc::{
             attenuation,
-            oneshot::{config::AdcChannelConfig, config::Calibration, AdcChannelDriver, AdcDriver},
+            oneshot::{
+                config::{AdcChannelConfig, Calibration},
+                AdcChannelDriver, AdcDriver,
+            },
         },
         gpio::PinDriver,
         peripherals::Peripherals,
