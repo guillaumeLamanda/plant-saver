@@ -13,16 +13,12 @@ fn main() {
     esp_idf_svc::log::EspLogger::initialize_default();
     let peripherals = Peripherals::take().unwrap();
 
-    let adc = AdcDriver::new(peripherals.adc2).unwrap();
+    let adc = AdcDriver::new(peripherals.adc1).unwrap();
 
     let mut moisture_led = PinDriver::output(peripherals.pins.gpio12).unwrap();
-    let mut luminosity_led = PinDriver::output(peripherals.pins.gpio4).unwrap();
-    luminosity_led.set_high().unwrap();
-    thread::sleep(Duration::from_secs(1));
-    luminosity_led.set_low().unwrap();
 
     let soil_moisture_config = SoilMoistureConfig::default();
-    let mut esp_adc = EspAdc::new(&adc, peripherals.pins.gpio13, &soil_moisture_config).unwrap();
+    let mut esp_adc = EspAdc::new(&adc, peripherals.pins.gpio36, &soil_moisture_config).unwrap();
     let mut soil_moisture = SoilMoisture::new(soil_moisture_config);
 
     loop {
@@ -32,12 +28,22 @@ fn main() {
         let wait_time = 1000 * 60 * 10;
 
         thread::sleep(Duration::from_millis(wait_time));
-        let level = soil_moisture.read(&mut esp_adc).unwrap();
-        println!("soil moisture: {}", level.value());
 
-        match level.value() {
-            value if value < 65 => moisture_led.set_high().unwrap(),
-            _ => moisture_led.set_low().unwrap(),
+        match soil_moisture.read(&mut esp_adc) {
+            Ok(level) => {
+                let needs_water = soil_moisture.needs_water(level);
+                log::info!(
+                    "soil moisture: {}, needs water: {}",
+                    level.value(),
+                    needs_water
+                );
+                if needs_water {
+                    moisture_led.set_high().unwrap();
+                } else {
+                    moisture_led.set_low().unwrap();
+                }
+            }
+            Err(e) => log::warn!("soil moisture read failed, skipping cycle: {}", e),
         }
     }
 }

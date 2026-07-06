@@ -5,9 +5,9 @@ use esp_idf_svc::{
                 config::{AdcChannelConfig, Calibration},
                 AdcChannelDriver, AdcDriver,
             },
-            ADCCH4, ADCU2,
+            ADCCH0, ADCU1,
         },
-        gpio::Gpio13,
+        gpio::Gpio36,
     },
     sys::EspError,
 };
@@ -19,14 +19,14 @@ pub trait Adc {
 }
 
 pub struct EspAdc<'a> {
-    driver: &'a AdcDriver<'a, ADCU2>,
-    channel: AdcChannelDriver<'a, ADCCH4<ADCU2>, &'a AdcDriver<'a, ADCU2>>,
+    driver: &'a AdcDriver<'a, ADCU1>,
+    channel: AdcChannelDriver<'a, ADCCH0<ADCU1>, &'a AdcDriver<'a, ADCU1>>,
 }
 
 impl<'a> EspAdc<'a> {
     pub fn new(
-        driver: &'a AdcDriver<'a, ADCU2>,
-        pin: Gpio13<'a>,
+        driver: &'a AdcDriver<'a, ADCU1>,
+        pin: Gpio36<'a>,
         config: &SoilMoistureConfig,
     ) -> Result<Self, EspError> {
         let adc_channel_config = AdcChannelConfig {
@@ -61,6 +61,7 @@ impl SoilMoistureLevel {
 pub struct SoilMoisture {
     max_dry: u16,
     max_wet: u16,
+    needs_water_threshold: u8,
 }
 
 impl SoilMoisture {
@@ -68,6 +69,7 @@ impl SoilMoisture {
         Self {
             max_dry: config.max_dry,
             max_wet: config.max_wet,
+            needs_water_threshold: config.needs_water_threshold.clamp(0, 100),
         }
     }
 
@@ -80,6 +82,10 @@ impl SoilMoisture {
             self.max_wet = raw;
         }
         Ok(SoilMoistureLevel::new(self.to_percentage(raw)))
+    }
+
+    pub fn needs_water(&self, level: SoilMoistureLevel) -> bool {
+        level.value() < self.needs_water_threshold
     }
 
     fn to_percentage(&self, raw: u16) -> u8 {
@@ -155,5 +161,55 @@ mod tests {
         let _ = soil.read(&mut adc).unwrap();
         let level = soil.read(&mut adc).unwrap();
         assert_eq!(level.value(), 100);
+    }
+
+    #[test]
+    fn needs_water_dry_reading_returns_true() {
+        let mut soil = SoilMoisture::new(default_config());
+        let mut adc = FakeAdc::new(vec![4095]);
+        let level = soil.read(&mut adc).unwrap();
+        assert!(soil.needs_water(level));
+    }
+
+    #[test]
+    fn needs_water_wet_reading_returns_false() {
+        let mut soil = SoilMoisture::new(default_config());
+        let mut adc = FakeAdc::new(vec![1500]);
+        let level = soil.read(&mut adc).unwrap();
+        assert!(!soil.needs_water(level));
+    }
+
+    #[test]
+    fn needs_water_at_threshold_returns_false() {
+        let soil = SoilMoisture::new(default_config());
+        assert!(!soil.needs_water(SoilMoistureLevel::new(
+            SoilMoistureConfig::default().needs_water_threshold
+        )));
+    }
+
+    #[test]
+    fn needs_water_just_below_threshold_returns_true() {
+        let soil = SoilMoisture::new(default_config());
+        assert!(soil.needs_water(SoilMoistureLevel::new(
+            SoilMoistureConfig::default().needs_water_threshold - 1
+        )));
+    }
+
+    struct FailingAdc;
+
+    impl Adc for FailingAdc {
+        fn read(&mut self) -> Result<u16, EspError> {
+            Err(EspError::from_non_zero(
+                core::num::NonZeroI32::new(1).unwrap(),
+            ))
+        }
+    }
+
+    #[test]
+    fn read_propagates_adc_error_so_loop_can_skip() {
+        let mut soil = SoilMoisture::new(default_config());
+        let mut adc = FailingAdc;
+        let result = soil.read(&mut adc);
+        assert!(result.is_err());
     }
 }
