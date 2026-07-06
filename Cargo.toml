@@ -25,8 +25,23 @@ experimental = ["esp-idf-svc/experimental"]
 
 [dependencies]
 log = { version = "0.4", default-features = false }
-esp-idf-svc = { version = "0.52.1", default-features = false }
+esp-idf-svc = { version = "0.52", default-features = false, features = [
+    "embassy-time-driver",
+    "experimental",
+    "critical-section",
+] }
 anyhow = { version = "*", default-features = false }
+rs-matter = { version = "=0.2.0", default-features = false }
+rs-matter-stack = { version = "=0.1.0", default-features = false }
+esp-idf-matter = { git = "https://github.com/sysgrok/esp-idf-matter", rev = "3dcc2139f3d135cd5805290ee289807f0d6d9a80" }
+static_cell = "2.1"
+rand = "0.8"
+embassy-time-queue-utils = { version = "0.3", features = ["generic-queue-64"] }
 
 [build-dependencies]
 embuild = "0.33.1"
+
+[patch.crates-io]
+# crates.io 0.52.1 BLE GATT client `enh_open` uses wrong struct/fn; fixed on master at b1c8938.
+# Re-evaluate when 0.52.2+ ships to crates.io.
+esp-idf-svc = { git = "https://github.com/esp-rs/esp-idf-svc", rev = "b1c8938751045e82a08bead0b123aa4cf138d147" }

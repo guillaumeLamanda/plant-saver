@@ -17,3 +17,22 @@ impl Default for SoilMoistureConfig {
         }
     }
 }
+
+/// Reserved for real-DAC provisioning; must match the DAC's VID/PID when
+/// test DACs are removed (PRD out-of-scope for this phase).
+#[allow(dead_code)]
+pub struct MatterConfig {
+    pub vendor_id: u16,
+    pub product_id: u16,
+    pub device_name: &'static str,
+}
+
+impl Default for MatterConfig {
+    fn default() -> Self {
+        Self {
+            vendor_id: 0xFFF1,
+            product_id: 0x8001,
+            device_name: "plant-saver",
+        }
+    }
+}
