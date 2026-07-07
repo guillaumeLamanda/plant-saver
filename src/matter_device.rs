@@ -1,14 +1,19 @@
 use core::pin::pin;
 
+use std::sync::atomic::AtomicU8;
 use std::sync::Arc;
 
 use esp_idf_matter::init_async_io;
-use esp_idf_matter::matter::crypto::default_crypto;
+use esp_idf_matter::matter::crypto::{default_crypto, Crypto};
+use esp_idf_matter::matter::dm::clusters::desc::{self, ClusterHandler as _, DescHandler};
 use esp_idf_matter::matter::dm::devices::test::{
     DAC_PRIVKEY, TEST_DEV_ATT, TEST_DEV_COMM, TEST_DEV_DET,
 };
-use esp_idf_matter::matter::dm::{EmptyHandler, Node};
+use esp_idf_matter::matter::dm::{
+    Async, Dataver, DeviceType, EmptyHandler, Endpoint, EpClMatcher, Node,
+};
 use esp_idf_matter::matter::utils::init::InitMaybeUninit;
+use esp_idf_matter::matter::{clusters, devices};
 use esp_idf_matter::persist::EspKvBlobStore;
 use esp_idf_matter::wireless::{EspMatterWifi, EspWifiMatterStack};
 
@@ -24,20 +29,38 @@ use log::{error, info};
 
 use static_cell::StaticCell;
 
+use crate::matter_clusters::humidity::{self, RelativeHumidityHandler, HUMIDITY_ENDPOINT_ID};
+
 const BUMP_SIZE: usize = 20000;
 
 static MATTER_STACK: StaticCell<EspWifiMatterStack<BUMP_SIZE, ()>> = StaticCell::new();
 
-/// Endpoint layout (established here, stable for future slices):
-/// - Endpoint 0: root node — standard Matter commissioning clusters
-/// - Endpoint 1: reserved for the humidity sensor (slice 03: RelativeHumidityMeasurement + On/Off)
-/// - Endpoint 2+: reserved for a future watering actuator
-const NODE: Node = Node {
-    endpoints: &[EspWifiMatterStack::<0, ()>::root_endpoint()],
+/// Humidity Sensor device type (CSA device library 0x0307, introduced in
+/// Matter 1.3 → revision 1). Hosts the `RelativeHumidityMeasurement` cluster.
+/// Used with test DACs for this phase.
+const DEV_TYPE_HUMIDITY_SENSOR: DeviceType = DeviceType {
+    dtype: 0x0307,
+    drev: 1,
 };
 
-pub fn run(modem: Modem) -> Result<(), anyhow::Error> {
-    let result = block_on(matter(modem));
+/// Endpoint layout (stable for future slices):
+/// - Endpoint 0: root node — standard Matter commissioning clusters
+/// - Endpoint 1: humidity sensor (`RelativeHumidityMeasurement`; slice 04 adds
+///   a read-only On/Off "needs water" cluster here)
+/// - Endpoint 2+: reserved for a future watering actuator
+const NODE: Node = Node {
+    endpoints: &[
+        EspWifiMatterStack::<0, ()>::root_endpoint(),
+        Endpoint::new(
+            HUMIDITY_ENDPOINT_ID,
+            devices!(DEV_TYPE_HUMIDITY_SENSOR),
+            clusters!(DescHandler::CLUSTER, humidity::HUMIDITY_CLUSTER),
+        ),
+    ],
+};
+
+pub fn run(modem: Modem, soil_moisture_level: Arc<AtomicU8>) -> Result<(), anyhow::Error> {
+    let result = block_on(matter(modem, soil_moisture_level));
 
     if let Err(e) = &result {
         error!("Matter aborted execution with error: {e:?}");
@@ -46,7 +69,10 @@ pub fn run(modem: Modem) -> Result<(), anyhow::Error> {
     result
 }
 
-async fn matter(mut modem: Modem<'_>) -> Result<(), anyhow::Error> {
+async fn matter(
+    mut modem: Modem<'_>,
+    soil_moisture_level: Arc<AtomicU8>,
+) -> Result<(), anyhow::Error> {
     let stack = MATTER_STACK.uninit().init_with(EspWifiMatterStack::init(
         &TEST_DEV_DET,
         TEST_DEV_COMM,
@@ -64,7 +90,26 @@ async fn matter(mut modem: Modem<'_>) -> Result<(), anyhow::Error> {
 
     let crypto = default_crypto(rand::thread_rng(), DAC_PRIVKEY);
 
-    let handler = EmptyHandler;
+    let mut weak_rand = crypto.weak_rand()?;
+
+    // Pull-based humidity cluster handler: `measured_value` reads the latest
+    // `SoilMoistureLevel` from the shared cell the main loop updates.
+    let humidity_handler =
+        RelativeHumidityHandler::new(Dataver::new_rand(&mut weak_rand), soil_moisture_level);
+
+    // Chain endpoint 1 clusters with the (root) endpoint 0 system clusters.
+    let handler = EmptyHandler
+        .chain(
+            EpClMatcher::new(
+                Some(HUMIDITY_ENDPOINT_ID),
+                Some(humidity::HUMIDITY_CLUSTER.id),
+            ),
+            Async(humidity_handler.adapt()),
+        )
+        .chain(
+            EpClMatcher::new(Some(HUMIDITY_ENDPOINT_ID), Some(DescHandler::CLUSTER.id)),
+            Async(desc::DescHandler::new(Dataver::new_rand(&mut weak_rand)).adapt()),
+        );
 
     let mut store = EspKvBlobStore::new_default(nvs.clone())?;
     stack.startup(&crypto, &mut store).await?;
