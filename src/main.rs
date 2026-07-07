@@ -2,9 +2,12 @@
 #![recursion_limit = "256"]
 
 mod config;
+mod matter_clusters;
 mod matter_device;
 mod sensors;
 
+use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::Arc;
 use std::{thread, time::Duration};
 
 use esp_idf_svc::hal::task::thread::ThreadSpawnConfiguration;
@@ -28,6 +31,12 @@ fn main() {
 
     let modem = peripherals.modem;
 
+    // Latest SoilMoistureLevel (0–100), shared with the Matter stack: the read
+    // loop publishes here, the RelativeHumidityMeasurement handler reads it
+    // pull-based on each controller attribute read.
+    let soil_moisture_level = Arc::new(AtomicU8::new(0));
+    let level_for_matter = soil_moisture_level.clone();
+
     ThreadSpawnConfiguration::set(&ThreadSpawnConfiguration {
         name: Some(c"matter"),
         ..Default::default()
@@ -37,7 +46,7 @@ fn main() {
     thread::Builder::new()
         .stack_size(20 * 1024)
         .spawn(move || {
-            if let Err(e) = matter_device::run(modem) {
+            if let Err(e) = matter_device::run(modem, level_for_matter) {
                 log::error!("Matter stack aborted: {e:?}");
             }
         })
@@ -56,6 +65,7 @@ fn main() {
         match soil_moisture.read(&mut esp_adc) {
             Ok(level) => {
                 let needs_water = soil_moisture.needs_water(level);
+                soil_moisture_level.store(level.value(), Ordering::Relaxed);
                 log::info!(
                     "soil moisture: {}, needs water: {}",
                     level.value(),
