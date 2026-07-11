@@ -1,0 +1,11 @@
+
+#:schema https://mise.en.dev/schema/mise.json
+
+[env]
+'_'.file.path = "./scripts/export-esp.sh"
+MCU = "esp32"
+ESP_IDF_VERSION = "v5.5.3"
+ESPFLASH_PORT = "/dev/tty.usbserial-0001"
+CARGO_BUILD_TARGET = "xtensa-esp32-espidf"
+
+[tasks]
