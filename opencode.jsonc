@@ -1,5 +1,10 @@
 {
   "$schema": "https://opencode.ai/config.json",
+  "permission": {
+    "read": {
+      "~/.cargo/registry/*": "allow",
+    },
+  },
   "lsp": true,
   "agent": {
     "explore": {

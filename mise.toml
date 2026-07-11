@@ -1,3 +1,4 @@
+#:schema https://mise.en.dev/schema/mise.json
 [tools]
 "cargo:espflash" = "latest"
 
@@ -18,9 +19,24 @@ source scripts/export-esp.sh
 cargo build --release
 '''
 
+[tasks.build-h2]
+description = "Build the ESP32-H2 firmware (debug). Requires the RISC-V ESP toolchain."
+run = '''
+source scripts/export-esp.sh
+MCU=esp32h2 cargo build --target riscv32imac-esp-espidf
+'''
+
+[tasks.release-h2]
+description = "Build the ESP32-H2 firmware (release, optimized). Requires the RISC-V ESP toolchain."
+run = '''
+source scripts/export-esp.sh
+MCU=esp32h2 cargo build --release --target riscv32imac-esp-espidf
+'''
+
 [tasks.run]
 description = "Build and flash firmware to ESP32. Requires ESPFLASH_PORT set. Sources ESP toolchain env."
 depends = ["build"]
+alias = 'dev'
 run = '''
 source scripts/export-esp.sh
 cargo run
@@ -38,6 +54,13 @@ description = "Check code compiles without producing binary (fast lint). Sources
 run = '''
 source scripts/export-esp.sh
 cargo check
+'''
+
+[tasks.check-h2]
+description = "Check the ESP32-H2 target without producing a binary. Requires the RISC-V ESP toolchain."
+run = '''
+source scripts/export-esp.sh
+MCU=esp32h2 cargo check --target riscv32imac-esp-espidf
 '''
 
 [tasks.test]
