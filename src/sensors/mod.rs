@@ -7,12 +7,18 @@ use esp_idf_svc::{
             },
             ADCCH0, ADCU1,
         },
-        gpio::Gpio36,
+        gpio,
     },
     sys::EspError,
 };
 
 use crate::config::SoilMoistureConfig;
+
+#[cfg(esp32)]
+type AdcPin<'a> = gpio::Gpio36<'a>;
+
+#[cfg(esp32h2)]
+type AdcPin<'a> = gpio::Gpio1<'a>;
 
 pub trait Adc {
     fn read(&mut self) -> Result<u16, EspError>;
@@ -26,16 +32,27 @@ pub struct EspAdc<'a> {
 impl<'a> EspAdc<'a> {
     pub fn new(
         driver: &'a AdcDriver<'a, ADCU1>,
-        pin: Gpio36<'a>,
+        pin: AdcPin<'a>,
         config: &SoilMoistureConfig,
     ) -> Result<Self, EspError> {
         let adc_channel_config = AdcChannelConfig {
             attenuation: config.attenuation,
-            calibration: Calibration::Line,
+            calibration: crate::sensors::adc_calibration(),
             ..Default::default()
         };
         let channel = AdcChannelDriver::new(driver, pin, &adc_channel_config)?;
         Ok(Self { driver, channel })
+    }
+}
+
+fn adc_calibration() -> Calibration {
+    #[cfg(any(esp32, esp32c2, esp32s2))]
+    {
+        Calibration::Line
+    }
+    #[cfg(not(any(esp32, esp32c2, esp32s2)))]
+    {
+        Calibration::None
     }
 }
 

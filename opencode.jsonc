@@ -3,12 +3,22 @@
   "permission": {
     "read": {
       "~/.cargo/registry/*": "allow",
+      "~/.cargo/git/*": "allow",
     },
   },
   "lsp": true,
   "agent": {
+    "general": {
+      "model": "vercel/deepseek/deepseek-v4-pro",
+    },
+    "plan": {
+      "model": "vercel/deepseek/deepseek-v4-pro",
+    },
     "explore": {
-      "model": "vercel/alibaba/qwen-3-32b",
+      "model": "vercel/deepseek/deepseek-v4-flash",
+    },
+    "build": {
+      "model": "vercel/deepseek/deepseek-v4-pro",
     },
   },
 }

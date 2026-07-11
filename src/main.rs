@@ -3,6 +3,8 @@
 #![recursion_limit = "256"]
 
 mod config;
+#[cfg(esp32h2)]
+mod h2_wireless;
 mod matter_clusters;
 mod matter_device;
 mod sensors;
@@ -24,16 +26,17 @@ fn main() {
 
     let adc = esp_idf_svc::hal::adc::oneshot::AdcDriver::new(peripherals.adc1).unwrap();
 
-    #[cfg(esp32)]
+    #[cfg(not(esp32h2))]
     let mut moisture_led =
         esp_idf_svc::hal::gpio::PinDriver::output(peripherals.pins.gpio12).unwrap();
 
-    #[cfg(esp32h2)]
-    let mut moisture_led =
-        esp_idf_svc::hal::gpio::PinDriver::output(peripherals.pins.gpio1).unwrap();
-
     let soil_moisture_config = SoilMoistureConfig::default();
+
+    #[cfg(esp32)]
     let mut esp_adc = EspAdc::new(&adc, peripherals.pins.gpio36, &soil_moisture_config).unwrap();
+
+    #[cfg(esp32h2)]
+    let mut esp_adc = EspAdc::new(&adc, peripherals.pins.gpio1, &soil_moisture_config).unwrap();
     let mut soil_moisture = SoilMoisture::new(soil_moisture_config);
 
     let modem = peripherals.modem;
@@ -81,8 +84,10 @@ fn main() {
                     needs_water
                 );
                 if needs_water {
+                    #[cfg(not(esp32h2))]
                     moisture_led.set_high().unwrap();
                 } else {
+                    #[cfg(not(esp32h2))]
                     moisture_led.set_low().unwrap();
                 }
             }

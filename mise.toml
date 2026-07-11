@@ -3,34 +3,38 @@
 "cargo:espflash" = "latest"
 
 [env]
-ESPFLASH_PORT = "/dev/tty.usbserial-0001"
+# ESPFLASH_PORT = ""
+MCU = "esp32h2"
 
 [tasks.build]
 description = "Build the ESP32 firmware (debug). Sources ESP toolchain env."
 run = '''
-source scripts/export-esp.sh
 cargo build
 '''
 
 [tasks.release]
 description = "Build the ESP32 firmware (release, optimized). Sources ESP toolchain env."
 run = '''
-source scripts/export-esp.sh
 cargo build --release
 '''
 
 [tasks.build-h2]
 description = "Build the ESP32-H2 firmware (debug). Requires the RISC-V ESP toolchain."
 run = '''
-source scripts/export-esp.sh
 MCU=esp32h2 cargo build --target riscv32imac-esp-espidf
 '''
 
 [tasks.release-h2]
 description = "Build the ESP32-H2 firmware (release, optimized). Requires the RISC-V ESP toolchain."
 run = '''
-source scripts/export-esp.sh
 MCU=esp32h2 cargo build --release --target riscv32imac-esp-espidf
+'''
+
+[tasks.run-h2]
+description = "Build and flash firmware to ESP32-H2. Requires ESPFLASH_PORT set. Sources ESP toolchain env."
+depends = ["build-h2"]
+run = '''
+MCU=esp32h2 cargo run --target riscv32imac-esp-espidf
 '''
 
 [tasks.run]
@@ -38,21 +42,18 @@ description = "Build and flash firmware to ESP32. Requires ESPFLASH_PORT set. So
 depends = ["build"]
 alias = 'dev'
 run = '''
-source scripts/export-esp.sh
 cargo run
 '''
 
 [tasks.monitor]
 description = "Read serial output from ESP32 via espflash. Requires ESPFLASH_PORT set. Sources ESP toolchain env."
 run = '''
-source scripts/export-esp.sh
 espflash monitor
 '''
 
 [tasks.check]
 description = "Check code compiles without producing binary (fast lint). Sources ESP toolchain env."
 run = '''
-source scripts/export-esp.sh
 cargo check
 '''
 
@@ -66,13 +67,11 @@ MCU=esp32h2 cargo check --target riscv32imac-esp-espidf
 [tasks.test]
 description = "Run unit tests on host (no ESP hardware needed). Uses host toolchain."
 run = '''
-source scripts/export-esp.sh
 cargo test
 '''
 
 [tasks.clippy]
 description = "Run clippy lints. Sources ESP toolchain env."
 run = '''
-source scripts/export-esp.sh
 cargo clippy
 '''
