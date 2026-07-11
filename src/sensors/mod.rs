@@ -41,7 +41,7 @@ impl<'a> EspAdc<'a> {
 
 impl<'a> Adc for EspAdc<'a> {
     fn read(&mut self) -> Result<u16, EspError> {
-        self.driver.read(&mut self.channel)
+        self.driver.read_raw(&mut self.channel)
     }
 }
 
@@ -55,6 +55,22 @@ impl SoilMoistureLevel {
 
     pub fn value(&self) -> u8 {
         self.0
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SoilMoistureReading {
+    raw: u16,
+    level: SoilMoistureLevel,
+}
+
+impl SoilMoistureReading {
+    pub fn raw(&self) -> u16 {
+        self.raw
+    }
+
+    pub fn level(&self) -> SoilMoistureLevel {
+        self.level
     }
 }
 
@@ -73,7 +89,7 @@ impl SoilMoisture {
         }
     }
 
-    pub fn read<A: Adc>(&mut self, adc: &mut A) -> Result<SoilMoistureLevel, EspError> {
+    pub fn read_with_raw<A: Adc>(&mut self, adc: &mut A) -> Result<SoilMoistureReading, EspError> {
         let raw = adc.read()?;
         if raw > self.max_dry {
             self.max_dry = raw;
@@ -81,7 +97,10 @@ impl SoilMoisture {
         if raw < self.max_wet {
             self.max_wet = raw;
         }
-        Ok(SoilMoistureLevel::new(self.to_percentage(raw)))
+        Ok(SoilMoistureReading {
+            raw,
+            level: SoilMoistureLevel::new(self.to_percentage(raw)),
+        })
     }
 
     pub fn needs_water(&self, level: SoilMoistureLevel) -> bool {
@@ -130,7 +149,7 @@ mod tests {
     fn dry_reading_returns_zero() {
         let mut soil = SoilMoisture::new(default_config());
         let mut adc = FakeAdc::new(vec![4095]);
-        let level = soil.read(&mut adc).unwrap();
+        let level = soil.read_with_raw(&mut adc).unwrap().level();
         assert_eq!(level.value(), 0);
     }
 
@@ -138,7 +157,7 @@ mod tests {
     fn wet_reading_returns_one_hundred() {
         let mut soil = SoilMoisture::new(default_config());
         let mut adc = FakeAdc::new(vec![1500]);
-        let level = soil.read(&mut adc).unwrap();
+        let level = soil.read_with_raw(&mut adc).unwrap().level();
         assert_eq!(level.value(), 100);
     }
 
@@ -147,8 +166,19 @@ mod tests {
         let mut soil = SoilMoisture::new(default_config());
         let midpoint = (4095 + 1500) / 2;
         let mut adc = FakeAdc::new(vec![midpoint]);
-        let level = soil.read(&mut adc).unwrap();
+        let level = soil.read_with_raw(&mut adc).unwrap().level();
         assert_eq!(level.value(), 50);
+    }
+
+    #[test]
+    fn reading_exposes_raw_adc_value() {
+        let mut soil = SoilMoisture::new(default_config());
+        let mut adc = FakeAdc::new(vec![2345]);
+
+        let reading = soil.read_with_raw(&mut adc).unwrap();
+
+        assert_eq!(reading.raw(), 2345);
+        assert_eq!(reading.level().value(), 67);
     }
 
     #[test]
@@ -158,8 +188,8 @@ mod tests {
         config.max_wet = 2000;
         let mut soil = SoilMoisture::new(config);
         let mut adc = FakeAdc::new(vec![3500, 1000]);
-        let _ = soil.read(&mut adc).unwrap();
-        let level = soil.read(&mut adc).unwrap();
+        let _ = soil.read_with_raw(&mut adc).unwrap();
+        let level = soil.read_with_raw(&mut adc).unwrap().level();
         assert_eq!(level.value(), 100);
     }
 
@@ -167,7 +197,7 @@ mod tests {
     fn needs_water_dry_reading_returns_true() {
         let mut soil = SoilMoisture::new(default_config());
         let mut adc = FakeAdc::new(vec![4095]);
-        let level = soil.read(&mut adc).unwrap();
+        let level = soil.read_with_raw(&mut adc).unwrap().level();
         assert!(soil.needs_water(level));
     }
 
@@ -175,7 +205,7 @@ mod tests {
     fn needs_water_wet_reading_returns_false() {
         let mut soil = SoilMoisture::new(default_config());
         let mut adc = FakeAdc::new(vec![1500]);
-        let level = soil.read(&mut adc).unwrap();
+        let level = soil.read_with_raw(&mut adc).unwrap().level();
         assert!(!soil.needs_water(level));
     }
 
@@ -209,7 +239,7 @@ mod tests {
     fn read_propagates_adc_error_so_loop_can_skip() {
         let mut soil = SoilMoisture::new(default_config());
         let mut adc = FailingAdc;
-        let result = soil.read(&mut adc);
+        let result = soil.read_with_raw(&mut adc);
         assert!(result.is_err());
     }
 }

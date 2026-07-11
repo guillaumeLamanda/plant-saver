@@ -5,6 +5,8 @@
 - [ESP32](https://www.espressif.com/sites/default/files/documentation/esp32-wroom-32d_esp32-wroom-32u_datasheet_en.pdf)
   - Architecture: xtensia
     - [prepare the environment](https://esp-rs.github.io/book/installation/riscv-and-xtensa.html)
+- ESP32 H2 Zero
+- [moisture sensor: Capacitive Soil Moisture Sensor v1.2](https://boutique.semageek.com/en/1522-capacitive-soil-moisture-sensor-v12-3002844163382.html)
 
 ## Tools
 
@@ -27,7 +29,7 @@
 - Build firmware: `cargo build --release`
 - Run simulation: `wokwi-cli` from repo root
 - Adjust the potentiometer to simulate moisture changes
-- Web project: https://wokwi.com/projects/323845300685898322
+- Web project: <https://wokwi.com/projects/323845300685898322>
 
 ## Ressources
 
@@ -53,3 +55,18 @@
   - <https://github.com/esp-rs>
   - <https://esp-rs.github.io/book/installation/index.html>
   - <https://esp-rs.github.io/book/installation/riscv.html>
+- ESP32-H2 Zero
+  - [Waveshare board documentation and pinout](https://www.waveshare.com/wiki/ESP32-H2-Zero)
+  - [Waveshare schematic](https://files.waveshare.com/wiki/ESP32-H2-Zero/ESP32-H2-Zero-Schematic.pdf)
+  - [ESP32-H2 datasheet](https://www.espressif.com/sites/default/files/documentation/esp32-h2_datasheet_en.pdf)
+  - [ESP-IDF GPIO summary and strapping-pin restrictions](https://docs.espressif.com/projects/esp-idf/en/v5.5.3/esp32h2/api-reference/peripherals/gpio.html#gpio-summary)
+  - [ESP-IDF ADC oneshot driver](https://docs.espressif.com/projects/esp-idf/en/v5.5.3/esp32h2/api-reference/peripherals/adc_oneshot.html)
+  - [ESP-IDF ADC calibration driver](https://docs.espressif.com/projects/esp-idf/en/v5.5.3/esp32h2/api-reference/peripherals/adc_calibration.html)
+  - [ESP-IDF ADC GPIO/channel mapping](https://github.com/espressif/esp-idf/blob/v5.5.3/components/soc/esp32h2/include/soc/adc_channel.h)
+
+## ESP32-H2 Zero wiring
+
+Connect the capacitive soil-moisture sensor to `3V3`, `GND`, and `GPIO1`
+(`ADC1_CH0`). `GPIO1` is ADC-capable and is not a strapping pin. Avoid ADC-capable
+`GPIO2` and `GPIO3` for this sensor because external circuitry can change their
+level while the chip samples its boot configuration during reset.

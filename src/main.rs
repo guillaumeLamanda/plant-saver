@@ -1,4 +1,5 @@
 #![allow(unexpected_cfgs)]
+#![allow(unknown_lints)]
 #![recursion_limit = "256"]
 
 mod config;
@@ -22,8 +23,14 @@ fn main() {
     let peripherals = esp_idf_svc::hal::peripherals::Peripherals::take().unwrap();
 
     let adc = esp_idf_svc::hal::adc::oneshot::AdcDriver::new(peripherals.adc1).unwrap();
+
+    #[cfg(esp32)]
     let mut moisture_led =
         esp_idf_svc::hal::gpio::PinDriver::output(peripherals.pins.gpio12).unwrap();
+
+    #[cfg(esp32h2)]
+    let mut moisture_led =
+        esp_idf_svc::hal::gpio::PinDriver::output(peripherals.pins.gpio1).unwrap();
 
     let soil_moisture_config = SoilMoistureConfig::default();
     let mut esp_adc = EspAdc::new(&adc, peripherals.pins.gpio36, &soil_moisture_config).unwrap();
@@ -62,12 +69,14 @@ fn main() {
 
         thread::sleep(Duration::from_millis(wait_time));
 
-        match soil_moisture.read(&mut esp_adc) {
-            Ok(level) => {
+        match soil_moisture.read_with_raw(&mut esp_adc) {
+            Ok(reading) => {
+                let level = reading.level();
                 let needs_water = soil_moisture.needs_water(level);
                 soil_moisture_level.store(level.value(), Ordering::Relaxed);
                 log::info!(
-                    "soil moisture: {}, needs water: {}",
+                    "soil moisture raw: {}, level: {}, needs water: {}",
+                    reading.raw(),
                     level.value(),
                     needs_water
                 );
