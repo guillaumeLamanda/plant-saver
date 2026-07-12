@@ -5,9 +5,6 @@
 //! logic lives here — the value originates in the `SoilMoisture` module and is
 //! only wired to the cluster by this handler.
 
-use std::sync::atomic::{AtomicU8, Ordering};
-use std::sync::Arc;
-
 use esp_idf_matter::matter::dm::{Cluster, Dataver, ReadContext};
 use esp_idf_matter::matter::error::Error;
 use esp_idf_matter::matter::tlv::Nullable;
@@ -38,11 +35,11 @@ pub const HUMIDITY_CLUSTER: Cluster<'static> =
 /// ×100 at the handler boundary. The sensor domain stays 0–100.
 pub struct RelativeHumidityHandler {
     dataver: Dataver,
-    level: Arc<AtomicU8>,
+    level: u8,
 }
 
 impl RelativeHumidityHandler {
-    pub fn new(dataver: Dataver, level: Arc<AtomicU8>) -> Self {
+    pub fn new(dataver: Dataver, level: u8) -> Self {
         Self { dataver, level }
     }
 
@@ -70,9 +67,7 @@ impl ClusterHandler for RelativeHumidityHandler {
     }
 
     fn measured_value(&self, _ctx: impl ReadContext) -> Result<Nullable<u16>, Error> {
-        Ok(Nullable::some(
-            self.level.load(Ordering::Relaxed) as u16 * HUNDREDTHS,
-        ))
+        Ok(Nullable::some(self.level as u16 * HUNDREDTHS))
     }
 
     fn min_measured_value(&self, _ctx: impl ReadContext) -> Result<Nullable<u16>, Error> {

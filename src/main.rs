@@ -3,20 +3,23 @@
 #![recursion_limit = "256"]
 
 mod config;
-#[cfg(esp32h2)]
 mod h2_wireless;
 mod matter_clusters;
 mod matter_device;
 mod sensors;
 
-use std::sync::atomic::{AtomicU8, Ordering};
-use std::sync::Arc;
-use std::{thread, time::Duration};
-
-use esp_idf_svc::hal::task::thread::ThreadSpawnConfiguration;
+use esp_idf_svc::hal::adc::oneshot::config::{AdcChannelConfig, Calibration};
+use esp_idf_svc::hal::adc::oneshot::{AdcChannelDriver, AdcDriver};
+use esp_idf_svc::hal::modem::Modem;
+use esp_idf_svc::hal::task::block_on;
 
 use crate::config::SoilMoistureConfig;
-use crate::sensors::{EspAdc, SoilMoisture};
+use crate::sensors::SoilMoisture;
+
+#[cfg(not(esp32h2))]
+fn main() {
+    panic!("device not supported")
+}
 
 fn main() {
     esp_idf_svc::log::EspLogger::initialize_default();
@@ -25,46 +28,37 @@ fn main() {
 
     let peripherals = esp_idf_svc::hal::peripherals::Peripherals::take().unwrap();
 
-    let adc = esp_idf_svc::hal::adc::oneshot::AdcDriver::new(peripherals.adc1).unwrap();
-
-    #[cfg(not(esp32h2))]
-    let mut moisture_led =
-        esp_idf_svc::hal::gpio::PinDriver::output(peripherals.pins.gpio12).unwrap();
+    let adc = AdcDriver::new(peripherals.adc1).unwrap();
 
     let soil_moisture_config = SoilMoistureConfig::default();
 
-    #[cfg(esp32)]
-    let mut esp_adc = EspAdc::new(&adc, peripherals.pins.gpio36, &soil_moisture_config).unwrap();
-
-    #[cfg(esp32h2)]
-    let mut esp_adc = EspAdc::new(&adc, peripherals.pins.gpio1, &soil_moisture_config).unwrap();
-    let mut soil_moisture = SoilMoisture::new(soil_moisture_config);
+    let adc_channel_config = AdcChannelConfig {
+        attenuation: soil_moisture_config.attenuation,
+        calibration: Calibration::None,
+        ..Default::default()
+    };
+    let channel = AdcChannelDriver::new(adc, peripherals.pins.gpio1, &adc_channel_config).unwrap();
+    let mut soil_moisture = SoilMoisture::new(soil_moisture_config, channel);
 
     let modem = peripherals.modem;
 
-    // Latest SoilMoistureLevel (0–100), shared with the Matter stack: the read
-    // loop publishes here, the RelativeHumidityMeasurement handler reads it
-    // pull-based on each controller attribute read.
-    let soil_moisture_level = Arc::new(AtomicU8::new(0));
-    let level_for_matter = soil_moisture_level.clone();
-
-    ThreadSpawnConfiguration::set(&ThreadSpawnConfiguration {
-        name: Some(c"matter"),
-        ..Default::default()
-    })
+    log_heap("pre-block-on");
+    block_on(matter_device::matter(modem, || {
+        soil_moisture.read().map(|level| level.value()).unwrap()
+    }))
     .unwrap();
-
-    thread::Builder::new()
-        .stack_size(20 * 1024)
-        .spawn(move || {
-            if let Err(e) = matter_device::run(modem, level_for_matter) {
-                log::error!("Matter stack aborted: {e:?}");
-            }
-        })
-        .unwrap();
 }
 
-#[cfg(esp32h2)]
+pub fn run_matter(modem: Modem, get_value: fn() -> u8) -> Result<(), anyhow::Error> {
+    let result = block_on(matter_device::matter(modem, get_value));
+
+    if let Err(e) = &result {
+        log::error!("Matter aborted execution with error: {e:?}");
+    }
+
+    result
+}
+
 fn log_task_stacks() {
     use esp_idf_svc::sys;
 
