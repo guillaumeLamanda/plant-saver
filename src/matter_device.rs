@@ -27,9 +27,10 @@ use log::{error, info};
 
 use static_cell::StaticCell;
 
+use crate::log_heap;
 use crate::matter_clusters::humidity::{self, RelativeHumidityHandler, HUMIDITY_ENDPOINT_ID};
 
-const BUMP_SIZE: usize = 20000;
+const BUMP_SIZE: usize = 17000;
 
 #[cfg(not(esp32h2))]
 use esp_idf_matter::wireless::{EspMatterWifi, EspWifiMatterStack};
@@ -89,10 +90,12 @@ async fn matter(
     let sysloop = EspSystemEventLoop::take()?;
     let nvs = EspDefaultNvsPartition::take()?;
 
-    let mounted_event_fs = Arc::new(MountedEventfs::mount(3)?);
+    let mounted_event_fs = Arc::new(MountedEventfs::mount(6)?);
     init_async_io(mounted_event_fs.clone())?;
 
+    log_heap("pre-reduce-bt-memory");
     reduce_bt_memory(unsafe { modem.reborrow() })?;
+    log_heap("post-reduce-bt-memory");
 
     let crypto = default_crypto(rand::thread_rng(), DAC_PRIVKEY);
     let mut weak_rand = crypto.weak_rand()?;
@@ -148,6 +151,8 @@ async fn matter(
 
     #[cfg(esp32h2)]
     {
+        log_heap("pre-matter-h2-init");
+
         let stack = MATTER_STACK.uninit().init_with(EspThreadMatterStack::init(
             &TEST_DEV_DET,
             TEST_DEV_COMM,

@@ -34,6 +34,7 @@ use rs_matter_stack::MatterStack;
 extern crate alloc;
 
 const GATTS_APP_ID: u16 = 0;
+const THREAD_DRIVER_STACK_SIZE: usize = 8 * 1024;
 
 pub type EspThreadMatterStack<'a, const B: usize, E> =
     MatterStack<'a, B, WirelessBle<Thread, EspGattH2<E>>>;
@@ -127,9 +128,13 @@ impl Gatt for EspMatterThread<'_, '_> {
     where
         A: GattTask,
     {
+        crate::log_heap("pre-ble-gatt");
+
         let bt = BtDriver::new(unsafe { self.modem.reborrow() }, Some(self.nvs.clone())).unwrap();
         let peripheral =
             EspBtpGattPeripheral::<bt::Ble>::new(GATTS_APP_ID, bt, self.ble_context).unwrap();
+
+        crate::log_heap("post-ble-gatt");
 
         task.run(peripheral).await
     }
@@ -145,6 +150,8 @@ impl rs_matter_stack::wireless::Thread for EspMatterThread<'_, '_> {
     where
         A: ThreadTask,
     {
+        crate::log_heap("pre-thread");
+
         let mut thread = EspThread::new(
             unsafe { self.modem.reborrow() },
             self.sysloop.clone(),
@@ -158,9 +165,13 @@ impl rs_matter_stack::wireless::Thread for EspMatterThread<'_, '_> {
 
         info!("Thread stack created, about to start it");
 
-        thread.start().map_err(to_net_error)?;
+        thread
+            .start_with_stack_size(THREAD_DRIVER_STACK_SIZE)
+            .map_err(to_net_error)?;
 
         info!("Thread stack started");
+
+        crate::log_heap("post-thread");
 
         let net_ctl = EspMatterThreadCtl::new(&thread, self.sysloop.clone());
         let mut mdns = EspMatterThreadSrp::new(&thread);
@@ -180,6 +191,8 @@ impl ThreadCoex for EspMatterThread<'_, '_> {
     where
         A: ThreadCoexTask,
     {
+        crate::log_heap("pre-thread-coex");
+
         let modem = unsafe { self.modem.reborrow() };
 
         let (thread_p, bt_p) = modem.split();
@@ -197,15 +210,22 @@ impl ThreadCoex for EspMatterThread<'_, '_> {
 
         info!("Thread stack created, about to start it");
 
-        thread.start().map_err(to_net_error)?;
+        thread
+            .start_with_stack_size(THREAD_DRIVER_STACK_SIZE)
+            .map_err(to_net_error)?;
 
         info!("Thread stack started");
+
+        crate::log_heap("post-thread-pre-ble-coex");
 
         let net_ctl = EspMatterThreadCtl::new(&thread, self.sysloop.clone());
         let mut mdns = EspMatterThreadSrp::new(&thread);
         let bt = BtDriver::new(bt_p, Some(self.nvs.clone())).unwrap();
         let mut peripheral =
             EspBtpGattPeripheral::<bt::Ble>::new(GATTS_APP_ID, bt, self.ble_context).unwrap();
+
+        crate::log_heap("post-thread-ble-coex");
+        crate::log_task_stacks();
 
         task.run(
             EspMatterNetStack::new(),

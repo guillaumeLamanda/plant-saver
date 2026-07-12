@@ -20,6 +20,7 @@ use crate::sensors::{EspAdc, SoilMoisture};
 
 fn main() {
     esp_idf_svc::log::EspLogger::initialize_default();
+
     log::info!("Booting plant-saver");
 
     let peripherals = esp_idf_svc::hal::peripherals::Peripherals::take().unwrap();
@@ -61,48 +62,45 @@ fn main() {
             }
         })
         .unwrap();
+}
 
-    log_heap("baseline");
-    let mut cycle: u32 = 0;
-    loop {
-        #[cfg(debug_assertions)]
-        let wait_time = 1000;
-        #[cfg(not(debug_assertions))]
-        let wait_time = 1000 * 60 * 10;
+#[cfg(esp32h2)]
+fn log_task_stacks() {
+    use esp_idf_svc::sys;
 
-        thread::sleep(Duration::from_millis(wait_time));
+    for name in [
+        c"matter",
+        c"ThreadDriver Ru",
+        c"BTC_TASK",
+        c"BTU_TASK",
+        c"ble_ll_task",
+        c"hciT",
+        c"sys_evt",
+    ] {
+        let name_str = name.to_str().unwrap();
 
-        match soil_moisture.read_with_raw(&mut esp_adc) {
-            Ok(reading) => {
-                let level = reading.level();
-                let needs_water = soil_moisture.needs_water(level);
-                soil_moisture_level.store(level.value(), Ordering::Relaxed);
-                log::info!(
-                    "soil moisture raw: {}, level: {}, needs water: {}",
-                    reading.raw(),
-                    level.value(),
-                    needs_water
-                );
-                if needs_water {
-                    #[cfg(not(esp32h2))]
-                    moisture_led.set_high().unwrap();
-                } else {
-                    #[cfg(not(esp32h2))]
-                    moisture_led.set_low().unwrap();
-                }
-            }
-            Err(e) => log::warn!("soil moisture read failed, skipping cycle: {}", e),
+        // These tasks remain alive for the firmware lifetime. Looking them up
+        // individually avoids FreeRTOS trace metadata and snapshot buffers.
+        let handle = unsafe { sys::xTaskGetHandle(name.as_ptr()) };
+
+        if handle.is_null() {
+            log::warn!("task-stack ({name_str}): not found");
+            continue;
         }
 
-        cycle = cycle.wrapping_add(1);
-        if cycle < 10 || cycle % 10 == 0 {
-            log_heap("runtime");
-        }
+        // Convert the reported StackType_t units to bytes for this target.
+        let slack_words = unsafe { sys::uxTaskGetStackHighWaterMark2(handle) };
+        let slack_bytes = slack_words * core::mem::size_of::<sys::StackType_t>() as u32;
+
+        log::info!("task-stack ({name_str}): slack_bytes={slack_bytes}");
     }
 }
 
-fn log_heap(tag: &str) {
+pub(crate) fn log_heap(tag: &str) {
     let free = unsafe { esp_idf_svc::sys::esp_get_free_heap_size() };
     let min = unsafe { esp_idf_svc::sys::esp_get_minimum_free_heap_size() };
-    log::info!("heap ({tag}): free={free} bytes, min={min} bytes");
+    let largest = unsafe {
+        esp_idf_svc::sys::heap_caps_get_largest_free_block(esp_idf_svc::sys::MALLOC_CAP_DEFAULT)
+    };
+    log::info!("heap ({tag}): free={free}, largest_block={largest}, min_free_ever={min}");
 }
