@@ -19,7 +19,7 @@ return {
 			opts.server.default_settings = vim.tbl_deep_extend("force", opts.server.default_settings or {}, {
 				["rust-analyzer"] = {
 					cargo = {
-						target = "xtensa-esp32-espidf",
+						-- target = "xtensa-esp32-espidf",
 						allFeatures = true,
 						buildScripts = {
 							enable = true,
