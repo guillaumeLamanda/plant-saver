@@ -1,44 +1,34 @@
 #:schema https://mise.en.dev/schema/mise.json
 [tools]
 "cargo:espflash" = "latest"
+"rust" = { version = "nightly", components = [
+  "rust-src",
+], targets = [
+  "riscv32imac-unknown-none-elf",
+  "rust-fmt",
+  "clippy",
+  "rust-analyzer",
+] }
 
 [env]
-# ESPFLASH_PORT = ""
 MCU = "esp32h2"
+CARGO_BUILD_TARGET = "riscv32imac-esp-espidf"
+ESPFLASH_PORT = "/dev/cu.usbmodem1101"
 
 [tasks.build]
-description = "Build the ESP32 firmware (debug). Sources ESP toolchain env."
+description = "Build the ESP32 firmware (debug)."
 run = '''
 cargo build
 '''
 
 [tasks.release]
-description = "Build the ESP32 firmware (release, optimized). Sources ESP toolchain env."
+description = "Build the ESP32 firmware (release)."
 run = '''
 cargo build --release
 '''
 
-[tasks.build-h2]
-description = "Build the ESP32-H2 firmware (debug). Requires the RISC-V ESP toolchain."
-run = '''
-MCU=esp32h2 cargo build --target riscv32imac-esp-espidf
-'''
-
-[tasks.release-h2]
-description = "Build the ESP32-H2 firmware (release, optimized). Requires the RISC-V ESP toolchain."
-run = '''
-MCU=esp32h2 cargo build --release --target riscv32imac-esp-espidf
-'''
-
-[tasks.run-h2]
-description = "Build and flash firmware to ESP32-H2. Requires ESPFLASH_PORT set. Sources ESP toolchain env."
-depends = ["build-h2"]
-run = '''
-MCU=esp32h2 cargo run --target riscv32imac-esp-espidf
-'''
-
 [tasks.run]
-description = "Build and flash firmware to ESP32. Requires ESPFLASH_PORT set. Sources ESP toolchain env."
+description = "Build and flash firmware to ESP32."
 depends = ["build"]
 alias = 'dev'
 run = '''
@@ -46,32 +36,25 @@ cargo run
 '''
 
 [tasks.monitor]
-description = "Read serial output from ESP32 via espflash. Requires ESPFLASH_PORT set. Sources ESP toolchain env."
+description = "Read serial output from ESP32 via espflash."
 run = '''
 espflash monitor
 '''
 
 [tasks.check]
-description = "Check code compiles without producing binary (fast lint). Sources ESP toolchain env."
+description = "Check ESP32 target code compiles (fast)."
 run = '''
 cargo check
 '''
 
-[tasks.check-h2]
-description = "Check the ESP32-H2 target without producing a binary. Requires the RISC-V ESP toolchain."
-run = '''
-source scripts/export-esp.sh
-MCU=esp32h2 cargo check --target riscv32imac-esp-espidf
-'''
-
 [tasks.test]
-description = "Run unit tests on host (no ESP hardware needed). Uses host toolchain."
+description = "Run unit tests on host (no ESP hardware needed)."
 run = '''
 cargo test
 '''
 
 [tasks.clippy]
-description = "Run clippy lints. Sources ESP toolchain env."
+description = "Run clippy lints."
 run = '''
 cargo clippy
 '''
