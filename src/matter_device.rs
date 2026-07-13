@@ -1,5 +1,6 @@
 use core::pin::pin;
 
+use std::sync::atomic::AtomicU8;
 use std::sync::Arc;
 
 use esp_idf_matter::init_async_io;
@@ -28,7 +29,7 @@ use static_cell::StaticCell;
 use crate::log_heap;
 use crate::matter_clusters::humidity::{self, RelativeHumidityHandler, HUMIDITY_ENDPOINT_ID};
 
-const BUMP_SIZE: usize = 12000;
+const BUMP_SIZE: usize = 17000;
 
 use crate::h2_wireless::{EspMatterThread, EspThreadMatterStack};
 static MATTER_STACK: StaticCell<EspThreadMatterStack<BUMP_SIZE, ()>> = StaticCell::new();
@@ -52,10 +53,13 @@ const NODE: Node = Node {
 
 pub async fn matter(
     mut modem: Modem<'_>,
-    mut get_value: impl FnMut() -> u8,
+    soil_moisture_level: Arc<AtomicU8>,
 ) -> Result<(), anyhow::Error> {
     let sysloop = EspSystemEventLoop::take()?;
     let nvs = EspDefaultNvsPartition::take()?;
+
+    let mounted_event_fs = Arc::new(MountedEventfs::mount(6)?);
+    init_async_io(mounted_event_fs.clone())?;
 
     log_heap("pre-reduce-bt-memory");
     reduce_bt_memory(unsafe { modem.reborrow() })?;
@@ -65,7 +69,7 @@ pub async fn matter(
     let mut weak_rand = crypto.weak_rand()?;
 
     let humidity_handler =
-        RelativeHumidityHandler::new(Dataver::new_rand(&mut weak_rand), get_value());
+        RelativeHumidityHandler::new(Dataver::new_rand(&mut weak_rand), soil_moisture_level);
 
     let handler = EmptyHandler
         .chain(
@@ -98,8 +102,6 @@ pub async fn matter(
     }
 
     let kv = stack.kv(&mut store);
-    let mounted_event_fs = Arc::new(MountedEventfs::mount(6)?);
-    init_async_io(mounted_event_fs.clone())?;
 
     let matter = pin!(stack.run_coex(
         EspMatterThread::new(modem, sysloop, nvs, mounted_event_fs, stack),

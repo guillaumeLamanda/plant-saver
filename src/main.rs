@@ -8,10 +8,16 @@ mod matter_clusters;
 mod matter_device;
 mod sensors;
 
+use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::Arc;
+use std::thread;
+use std::time::Duration;
+
 use esp_idf_svc::hal::adc::oneshot::config::{AdcChannelConfig, Calibration};
 use esp_idf_svc::hal::adc::oneshot::{AdcChannelDriver, AdcDriver};
 use esp_idf_svc::hal::modem::Modem;
 use esp_idf_svc::hal::task::block_on;
+use esp_idf_svc::hal::task::thread::ThreadSpawnConfiguration;
 
 use crate::config::SoilMoistureConfig;
 use crate::sensors::SoilMoisture;
@@ -40,17 +46,49 @@ fn main() {
     let channel = AdcChannelDriver::new(adc, peripherals.pins.gpio1, &adc_channel_config).unwrap();
     let mut soil_moisture = SoilMoisture::new(soil_moisture_config, channel);
 
+    let level = Arc::new(AtomicU8::new(
+        soil_moisture.read().map(|v| v.value()).unwrap_or(0),
+    ));
     let modem = peripherals.modem;
 
-    log_heap("pre-block-on");
-    block_on(matter_device::matter(modem, || {
-        soil_moisture.read().map(|level| level.value()).unwrap()
-    }))
+    let level_for_matter = level.clone();
+    ThreadSpawnConfiguration::set(&ThreadSpawnConfiguration {
+        name: Some(c"matter"),
+        ..Default::default()
+    })
     .unwrap();
+    thread::Builder::new()
+        .stack_size(20 * 1024)
+        .spawn(move || {
+            if let Err(e) = run_matter(modem, level_for_matter) {
+                log::error!("Matter aborted: {e:?}");
+            }
+        })
+        .unwrap();
+
+    let poll_interval = if cfg!(debug_assertions) {
+        Duration::from_secs(10)
+    } else {
+        Duration::from_secs(600)
+    };
+
+    loop {
+        match soil_moisture.read() {
+            Ok(moisture_level) => {
+                let value = moisture_level.value();
+                level.store(value, Ordering::Relaxed);
+                log::info!("moisture={value}%");
+            }
+            Err(e) => {
+                log::error!("ADC read error: {e:?}");
+            }
+        }
+        std::thread::sleep(poll_interval);
+    }
 }
 
-pub fn run_matter(modem: Modem, get_value: fn() -> u8) -> Result<(), anyhow::Error> {
-    let result = block_on(matter_device::matter(modem, get_value));
+pub fn run_matter(modem: Modem, level: Arc<AtomicU8>) -> Result<(), anyhow::Error> {
+    let result = block_on(matter_device::matter(modem, level));
 
     if let Err(e) = &result {
         log::error!("Matter aborted execution with error: {e:?}");
