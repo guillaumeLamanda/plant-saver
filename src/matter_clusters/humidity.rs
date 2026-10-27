@@ -5,8 +5,8 @@
 //! logic lives here — the value originates in the `SoilMoisture` module and is
 //! only wired to the cluster by this handler.
 
-use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU8, Ordering};
 
 use esp_idf_matter::matter::dm::{Cluster, Dataver, ReadContext};
 use esp_idf_matter::matter::error::Error;

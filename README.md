@@ -4,34 +4,44 @@
 
 - [ESP32-C6](https://www.espressif.com/sites/default/files/documentation/esp32-c6_datasheet_en.pdf)
   - Architecture: RISC-V
-    - [prepare the environment](https://esp-rs.github.io/book/installation/riscv-and-xtensa.html)
 - ESP32-C6 DevKit (8 MB flash)
 - [moisture sensor: Capacitive Soil Moisture Sensor v1.2](https://boutique.semageek.com/en/1522-capacitive-soil-moisture-sensor-v12-3002844163382.html)
 
-## Tools
-
-- [mise](https://mise.jdx.dev) — installs the pinned nightly Rust and `espflash`
-- [ldproxy](https://crates.io/crates/ldproxy) — `cargo install ldproxy`
-
 ## Getting started
 
-- `mise install` (or install the nightly from `rust-toolchain.toml` with rustup)
-- `cargo install ldproxy`
-- No `espup`/`esp` toolchain needed: the ESP32-C6 is RISC-V and builds on stock nightly
+[mise](https://mise.jdx.dev) installs everything: the nightly Rust pinned in
+`rust-toolchain.toml`, `espflash` and `ldproxy` (versions locked in `mise.lock`).
+No `espup`/`esp` toolchain is needed: the ESP32-C6 is RISC-V and builds on stock nightly.
+
+```sh
+mise install
+mise run build
+```
+
+The serial port defaults to `/dev/cu.usbmodem1101`. Override it for your machine in a
+gitignored `mise.local.toml`:
+
+```toml
+[env]
+ESPFLASH_PORT = "/dev/ttyUSB0"
+```
 
 ## Commands
 
-- read output: `espflash monitor` (port from `ESPFLASH_PORT`)
-- run: `cargo run`
-- build: `cargo build`
+Run `mise tasks` for the full list.
 
-## Simulation (Wokwi)
-
-- Install: `pip install wokwi-cli`
-- Build firmware: `cargo build --release`
-- Run simulation: `wokwi-cli` from repo root
-- Adjust the potentiometer to simulate moisture changes
-- Web project: <https://wokwi.com/projects/323845300685898322>
+| Task | Does |
+| --- | --- |
+| `mise run build` / `release` | debug / release build |
+| `mise run check` | `cargo check` (fast) |
+| `mise run clippy` | clippy, warnings are errors (as in CI) |
+| `mise run fmt` / `fmt:check` | format / check formatting |
+| `mise run ci` | every CI check: `fmt:check`, `clippy`, `release` |
+| `mise run run` (alias `dev`) | build, flash and monitor (hardware) |
+| `mise run monitor` | serial output only (hardware) |
+| `mise run test` | flash and run tests on-device (hardware) |
+| `mise run test:build` | compile tests without flashing |
+| `mise run erase` | erase the whole flash, wiping Matter commissioning (hardware) |
 
 ## Ressources
 

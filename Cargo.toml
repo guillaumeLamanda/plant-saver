@@ -2,35 +2,29 @@
 name = "plant-saver"
 version = "0.1.0"
 authors = ["Guillaume Lamanda <guillaume.lamanda@gmail.com>"]
-edition = "2021"
-resolver = "2"
-rust-version = "1.71"
+edition = "2024"
 
 [profile.release]
 opt-level = "s"
+debug = true # Symbols don't go to flash; they let espflash decode backtraces
+lto = true
+codegen-units = 1
 
 [profile.dev]
 debug = true    # Symbols are nice and they don't increase the size on Flash
 opt-level = "z"
 
-[profile.test]
-
-[features]
-default = ["std", "esp-idf-svc/native"]
-pio = ["esp-idf-svc/pio"]
-std = ["alloc", "esp-idf-svc/binstart", "esp-idf-svc/std"]
-alloc = ["esp-idf-svc/alloc"]
-nightly = ["esp-idf-svc/nightly"]
-experimental = ["esp-idf-svc/experimental"]
-
 [dependencies]
 log = { version = "0.4", default-features = false }
 esp-idf-svc = { version = "0.53", default-features = false, features = [
+    "std",
+    "binstart",
+    "native",
     "embassy-time-driver",
     "experimental",
     "critical-section",
 ] }
-anyhow = { version = "*", default-features = false }
+anyhow = { version = "1", default-features = false }
 rs-matter = { version = "0.4.1", default-features = false }
 rs-matter-stack = { version = "0.3.1", default-features = false }
 esp-idf-matter = "0.1"
@@ -40,4 +34,3 @@ embassy-time-queue-utils = { version = "0.3", features = ["generic-queue-64"] }
 
 [build-dependencies]
 embuild = "0.33.1"
-

@@ -2,6 +2,7 @@ name: Continuous Integration
 
 on:
   push:
+    branches: [master]
     paths-ignore:
       - "**/README.md"
   pull_request:
@@ -9,32 +10,34 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  # esp-idf-sys clones ESP-IDF from GitHub; the token avoids API rate limits.
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
   rust-checks:
-    name: Rust Checks
+    name: ${{ matrix.task }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        action:
-          - command: build
-            args: --release
-          - command: fmt
-            args: --all -- --check --color always
-          - command: clippy
-            args: --all-targets --all-features --workspace -- -D warnings
+        # Same tasks as `mise run ci` locally.
+        task: [release, "fmt:check", clippy]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
-      - name: Setup Rust
-        # Installs the nightly pinned in rust-toolchain.toml (with rust-src).
-        run: rustup toolchain install
-      - name: Enable caching
+      - name: Install tools (Rust from rust-toolchain.toml, espflash, ldproxy)
+        uses: jdx/mise-action@v5
+      - name: Cache cargo
+        if: matrix.task != 'fmt:check'
         uses: Swatinem/rust-cache@v2
-      - name: Install ldproxy
-        if: matrix.action.command != 'fmt'
-        run: cargo install ldproxy --locked
-      - name: Run command
-        run: cargo ${{ matrix.action.command }} ${{ matrix.action.args }}
+        with:
+          key: ${{ matrix.task }}
+      - name: Cache ESP-IDF and its toolchain
+        if: matrix.task != 'fmt:check'
+        uses: actions/cache@v6
+        with:
+          path: .embuild
+          key: embuild-${{ runner.os }}-${{ hashFiles('.cargo/config.toml', 'sdkconfig.defaults', 'Cargo.lock') }}
+          restore-keys: embuild-${{ runner.os }}-
+      - name: Run task
+        run: mise run ${{ matrix.task }}
