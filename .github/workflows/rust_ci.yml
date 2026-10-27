@@ -28,13 +28,13 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
+      - name: Setup Rust
+        # Installs the nightly pinned in rust-toolchain.toml (with rust-src).
+        run: rustup toolchain install
       - name: Enable caching
         uses: Swatinem/rust-cache@v2
-      - name: Setup Rust
-        uses: esp-rs/xtensa-toolchain@v1.7
-        with:
-          default: true
-          buildtargets: esp32c6
-          ldproxy: true
+      - name: Install ldproxy
+        if: matrix.action.command != 'fmt'
+        run: cargo install ldproxy --locked
       - name: Run command
         run: cargo ${{ matrix.action.command }} ${{ matrix.action.args }}

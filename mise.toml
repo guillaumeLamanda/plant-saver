@@ -1,7 +1,7 @@
 #:schema https://mise.en.dev/schema/mise.json
 [tools]
 "cargo:espflash" = "latest"
-"rust" = { version = "nightly", components = [
+"rust" = { version = "nightly-2026-10-01", components = [
   "rust-src",
   "rustfmt",
   "clippy",

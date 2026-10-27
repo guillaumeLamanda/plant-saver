@@ -10,16 +10,18 @@
 
 ## Tools
 
-- [espup](https://github.com/esp-rs/espup)
+- [mise](https://mise.jdx.dev) — installs the pinned nightly Rust and `espflash`
+- [ldproxy](https://crates.io/crates/ldproxy) — `cargo install ldproxy`
 
 ## Getting started
 
-- Install rust
-- setting up espup
+- `mise install` (or install the nightly from `rust-toolchain.toml` with rustup)
+- `cargo install ldproxy`
+- No `espup`/`esp` toolchain needed: the ESP32-C6 is RISC-V and builds on stock nightly
 
 ## Commands
 
-- read output: `ESPFLASH_PORT=/dev/tty.usbserial-0001 espflash monitor`
+- read output: `espflash monitor` (port from `ESPFLASH_PORT`)
 - run: `cargo run`
 - build: `cargo build`
 
@@ -62,5 +64,5 @@
 
 ## ESP32-C6 wiring
 
-Connect the capacitive soil-moisture sensor to `3V3`, `GND`, and `GPIO1` (`ADC1_CH0`).
+Connect the capacitive soil-moisture sensor to `3V3`, `GND`, and `GPIO1` (`ADC1_CH1`).
 `GPIO1` is ADC-capable and is not a strapping pin.
