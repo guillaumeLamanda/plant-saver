@@ -13,7 +13,7 @@ rustflags = [
 build-std = ["std", "panic_abort"]
 
 [env]
-MCU = "esp32c6"
-# Note: this variable is not used by the pio builder (`cargo build --features pio`)
+# Forced: the firmware only supports the C6, and a stale MCU in the shell
+# would otherwise silently build for another chip.
+MCU = { value = "esp32c6", force = true }
 ESP_IDF_VERSION = "v5.5.3"
-ESPFLASH_PORT = "/dev/cu.usbmodem1101"

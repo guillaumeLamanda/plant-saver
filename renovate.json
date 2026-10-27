@@ -1,6 +1,19 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "config:recommended"
+    "config:recommended",
+    "helpers:pinGitHubActionDigests"
+  ],
+  "packageRules": [
+    {
+      "description": "The nightly is pinned on purpose (newer ones break std for espidf); bump it by hand after testing.",
+      "matchDepNames": ["rust"],
+      "enabled": false
+    },
+    {
+      "description": "Matter / ESP-IDF crates move together; review them as one PR.",
+      "matchPackageNames": ["esp-idf-*", "rs-matter*", "embuild", "embassy-*"],
+      "groupName": "esp-idf and matter crates"
+    }
   ]
 }

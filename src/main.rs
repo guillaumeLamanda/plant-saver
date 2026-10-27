@@ -1,14 +1,15 @@
-#![allow(unexpected_cfgs)]
-#![allow(unknown_lints)]
 #![recursion_limit = "256"]
+
+#[cfg(not(esp32c6))]
+compile_error!("plant-saver only supports the ESP32-C6 (MCU=esp32c6)");
 
 mod config;
 mod matter_clusters;
 mod matter_device;
 mod sensors;
 
-use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU8, Ordering};
 use std::thread;
 use std::time::Duration;
 
@@ -22,11 +23,6 @@ use crate::config::SoilMoistureConfig;
 use crate::sensors::SoilMoisture;
 
 fn main() {
-    #[cfg(not(esp32c6))]
-    {
-        panic!("device not supported");
-    };
-
     esp_idf_svc::log::EspLogger::initialize_default();
     log::info!("Booting plant-saver");
 
@@ -86,13 +82,7 @@ fn main() {
 }
 
 pub fn run_matter(modem: Modem, level: Arc<AtomicU8>) -> Result<(), anyhow::Error> {
-    let result = block_on(matter_device::matter(modem, level));
-
-    if let Err(e) = &result {
-        log::error!("Matter aborted execution with error: {e:?}");
-    }
-
-    result
+    block_on(matter_device::matter(modem, level))
 }
 
 /// Stack-tuning diagnostic; call it from the loop when sizing task stacks.

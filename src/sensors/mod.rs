@@ -1,7 +1,7 @@
 use esp_idf_svc::{
     hal::adc::{
-        oneshot::{AdcChannelDriver, AdcDriver},
         ADCCH1, ADCU1,
+        oneshot::{AdcChannelDriver, AdcDriver},
     },
     sys::EspError,
 };

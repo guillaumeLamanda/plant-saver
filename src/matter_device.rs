@@ -1,10 +1,10 @@
 use core::pin::pin;
 
-use std::sync::atomic::AtomicU8;
 use std::sync::Arc;
+use std::sync::atomic::AtomicU8;
 
 use esp_idf_matter::init_async_io;
-use esp_idf_matter::matter::crypto::{default_crypto, Crypto};
+use esp_idf_matter::matter::crypto::{Crypto, default_crypto};
 use esp_idf_matter::matter::dm::clusters::desc::{self, ClusterHandler as _, DescHandler};
 use esp_idf_matter::matter::dm::devices::test::{
     DAC_PRIVKEY, TEST_DEV_ATT, TEST_DEV_COMM, TEST_DEV_DET,
@@ -26,7 +26,7 @@ use log::info;
 use static_cell::StaticCell;
 
 use crate::log_heap;
-use crate::matter_clusters::humidity::{self, RelativeHumidityHandler, HUMIDITY_ENDPOINT_ID};
+use crate::matter_clusters::humidity::{self, HUMIDITY_ENDPOINT_ID, RelativeHumidityHandler};
 
 const BUMP_SIZE: usize = 17000;
 
@@ -38,7 +38,6 @@ const DEV_TYPE_HUMIDITY_SENSOR: DeviceType = DeviceType {
     drev: 1,
 };
 
-#[cfg(esp32c6)]
 const NODE: Node = Node {
     endpoints: &[
         EspThreadMatterStack::<0, ()>::root_endpoint(),

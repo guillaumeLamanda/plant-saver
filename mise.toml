@@ -1,61 +1,69 @@
 #:schema https://mise.en.dev/schema/mise.json
+# Single entry point for every workflow (local and CI).
+# - The Rust toolchain comes from rust-toolchain.toml (read via the idiomatic
+#   version file), so the nightly is pinned in one place only.
+# - Cargo/ESP-IDF env (target, MCU, ESP_IDF_VERSION) lives in
+#   .cargo/config.toml so plain `cargo` works too.
+# - Override ESPFLASH_PORT for your machine in a gitignored mise.local.toml.
+
+[settings]
+idiomatic_version_file_enable_tools = ["rust"]
+lockfile = true
+
 [tools]
-"cargo:espflash" = "latest"
-"rust" = { version = "nightly-2026-10-01", components = [
-  "rust-src",
-  "rustfmt",
-  "clippy",
-  "rust-analyzer",
-], targets = [
-  "riscv32imac-unknown-none-elf",
-] }
+# Prebuilt release binaries: `cargo install` from this repo would pick up the
+# riscv target + build-std from .cargo/config.toml and fail.
+"github:esp-rs/espflash" = "4.5.0"
+"github:esp-rs/embuild" = { version = "0.3.2", version_prefix = "ldproxy-v", bin = "ldproxy" }
 
 [env]
-MCU = "esp32c6"
-ESP_IDF_TARGET = "esp32c6"
-CARGO_BUILD_TARGET = "riscv32imac-esp-espidf"
 ESPFLASH_PORT = "/dev/cu.usbmodem1101"
 
 [tasks.build]
-description = "Build the ESP32 firmware (debug)."
-run = '''
-cargo build # --features zeroconf
-'''
+description = "Build the firmware (debug)."
+run = "cargo build"
 
 [tasks.release]
-description = "Build the ESP32 firmware (release)."
-run = '''
-cargo build --release
-'''
-
-[tasks.run]
-description = "Build and flash firmware to ESP32."
-depends = ["build"]
-alias = 'dev'
-run = '''
-cargo run
-'''
-
-[tasks.monitor]
-description = "Read serial output from ESP32 via espflash."
-run = '''
-espflash monitor
-'''
+description = "Build the firmware (release)."
+run = "cargo build --release"
 
 [tasks.check]
-description = "Check ESP32 target code compiles (fast)."
-run = '''
-cargo check
-'''
-
-[tasks.test]
-description = "Run unit tests on host (no ESP hardware needed)."
-run = '''
-cargo test
-'''
+description = "Type-check the firmware (fast)."
+run = "cargo check"
 
 [tasks.clippy]
-description = "Run clippy lints."
-run = '''
-cargo clippy
-'''
+description = "Run clippy with the CI settings (warnings are errors)."
+run = "cargo clippy --all-targets --all-features --workspace -- -D warnings"
+
+[tasks.fmt]
+description = "Format the code."
+run = "cargo fmt --all"
+
+[tasks."fmt:check"]
+description = "Check formatting (CI)."
+run = "cargo fmt --all -- --check"
+
+[tasks.ci]
+description = "Run every CI check locally: fmt, clippy, release build."
+depends = ["fmt:check", "clippy", "release"]
+
+[tasks.run]
+description = "Build, flash to the ESP32-C6 and monitor (needs hardware)."
+alias = "dev"
+run = "cargo run"
+
+[tasks.monitor]
+description = "Attach to the ESP32-C6 serial output (needs hardware)."
+run = "espflash monitor"
+
+[tasks.test]
+description = "Build tests, flash them to the ESP32-C6 and run on-device (needs hardware)."
+run = "cargo test"
+
+[tasks."test:build"]
+description = "Compile the on-device tests without flashing."
+run = "cargo test --no-run"
+
+[tasks.erase]
+description = "Erase the whole flash, wiping Matter commissioning (needs hardware)."
+run = "espflash erase-flash"

@@ -1,7 +1,8 @@
 [toolchain]
+# Single source of truth for the toolchain: read by rustup, mise and CI.
 # Stock nightly: riscv32imac-esp-espidf is a tier-3 target built from source
 # via build-std, so the Xtensa `esp` toolchain is not needed for the ESP32-C6.
 # Pinned because nightly-2026-10-26 fails to build std for espidf
 # (libc `stat` field mismatch).
 channel = "nightly-2026-10-01"
-components = ["rust-src", "rustfmt", "clippy"]
+components = ["rust-src", "rustfmt", "clippy", "rust-analyzer"]
