@@ -32,6 +32,13 @@ CONFIG_BT_CONTROLLER_ONLY=n
 
 # OpenThread for Matter operational network (ESP32-C6 has 802.15.4 radio)
 CONFIG_OPENTHREAD_ENABLED=y
+# Mandatory per esp-idf-matter: let OpenThread pick the IPv6 source address on
+# the Thread netif (lwIP ignores Thread address roles otherwise).
+CONFIG_LWIP_HOOK_IP6_SELECT_SRC_ADDR_CUSTOM=y
+CONFIG_LWIP_IPV6_NUM_ADDRESSES=6
+
+# rs-matter 0.4's mbedTLS crypto backend calls mbedtls_hkdf (off by default)
+CONFIG_MBEDTLS_HKDF_C=y
 
 # So that the QR code does not get distorted by misaligned log lines
 CONFIG_LOG_TIMESTAMP_SOURCE_SYSTEM=y

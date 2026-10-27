@@ -1,7 +1,7 @@
 use esp_idf_svc::{
     hal::adc::{
         oneshot::{AdcChannelDriver, AdcDriver},
-        ADCCH0, ADCU1,
+        ADCCH1, ADCU1,
     },
     sys::EspError,
 };
@@ -30,13 +30,13 @@ pub struct SoilMoistureReading {
 pub struct SoilMoisture<'a> {
     max_dry: u16,
     max_wet: u16,
-    channel: AdcChannelDriver<'a, ADCCH0<ADCU1>, AdcDriver<'a, ADCU1>>,
+    channel: AdcChannelDriver<'a, ADCCH1<ADCU1>, AdcDriver<'a, ADCU1>>,
 }
 
 impl<'a> SoilMoisture<'a> {
     pub fn new(
         config: SoilMoistureConfig,
-        channel: AdcChannelDriver<'a, ADCCH0<ADCU1>, AdcDriver<'a, ADCU1>>,
+        channel: AdcChannelDriver<'a, ADCCH1<ADCU1>, AdcDriver<'a, ADCU1>>,
     ) -> Self {
         Self {
             max_dry: config.max_dry,

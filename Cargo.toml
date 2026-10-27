@@ -25,23 +25,19 @@ experimental = ["esp-idf-svc/experimental"]
 
 [dependencies]
 log = { version = "0.4", default-features = false }
-esp-idf-svc = { version = "0.52", default-features = false, features = [
+esp-idf-svc = { version = "0.53", default-features = false, features = [
     "embassy-time-driver",
     "experimental",
     "critical-section",
 ] }
 anyhow = { version = "*", default-features = false }
-rs-matter = { version = "=0.2.0", default-features = false }
-rs-matter-stack = { version = "=0.1.0", default-features = false }
-esp-idf-matter = { path = "vendor/esp-idf-matter" }
+rs-matter = { version = "0.4.1", default-features = false }
+rs-matter-stack = { version = "0.3.1", default-features = false }
+esp-idf-matter = "0.1"
 static_cell = "2.1"
-rand = "0.8"
+rand = "0.10"
 embassy-time-queue-utils = { version = "0.3", features = ["generic-queue-64"] }
 
 [build-dependencies]
 embuild = "0.33.1"
 
-[patch.crates-io]
-# Vendored from b1c8938: BLE GATT fix plus configurable Thread task stack.
-# Re-evaluate when both fixes ship on crates.io.
-esp-idf-svc = { path = "vendor/esp-idf-svc" }

@@ -4,6 +4,8 @@ pub struct SoilMoistureConfig {
     pub max_dry: u16,
     pub max_wet: u16,
     pub attenuation: attenuation::adc_atten_t,
+    /// Reserved for the read-only "needs water" On/Off cluster (slice 04).
+    #[allow(dead_code)]
     pub needs_water_threshold: u8,
 }
 

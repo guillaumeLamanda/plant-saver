@@ -95,6 +95,8 @@ pub fn run_matter(modem: Modem, level: Arc<AtomicU8>) -> Result<(), anyhow::Erro
     result
 }
 
+/// Stack-tuning diagnostic; call it from the loop when sizing task stacks.
+#[allow(dead_code)]
 fn log_task_stacks() {
     use esp_idf_svc::sys;
 

@@ -9,9 +9,8 @@ use esp_idf_matter::matter::dm::clusters::desc::{self, ClusterHandler as _, Desc
 use esp_idf_matter::matter::dm::devices::test::{
     DAC_PRIVKEY, TEST_DEV_ATT, TEST_DEV_COMM, TEST_DEV_DET,
 };
-use esp_idf_matter::matter::dm::{
-    Async, Dataver, DeviceType, EmptyHandler, Endpoint, EpClMatcher, Node,
-};
+use esp_idf_matter::matter::dm::endpoints::ROOT_ENDPOINT_ID;
+use esp_idf_matter::matter::dm::{Async, Dataver, DeviceType, EmptyHandler, Endpoint, Node};
 use esp_idf_matter::matter::utils::init::InitMaybeUninit;
 use esp_idf_matter::matter::{clusters, devices};
 use esp_idf_matter::persist::EspKvBlobStore;
@@ -65,7 +64,7 @@ pub async fn matter(
     reduce_bt_memory(unsafe { modem.reborrow() })?;
     log_heap("post-reduce-bt-memory");
 
-    let crypto = default_crypto(rand::thread_rng(), DAC_PRIVKEY);
+    let crypto = default_crypto(rand::rng(), DAC_PRIVKEY);
     let mut weak_rand = crypto.weak_rand()?;
 
     let humidity_handler =
@@ -73,14 +72,18 @@ pub async fn matter(
 
     let handler = EmptyHandler
         .chain(
-            EpClMatcher::new(
-                Some(HUMIDITY_ENDPOINT_ID),
-                Some(humidity::HUMIDITY_CLUSTER.id),
-            ),
+            |e, _| e == ROOT_ENDPOINT_ID,
+            Async(EspThreadMatterStack::<0, ()>::root_handler(
+                &(),
+                &mut weak_rand,
+            )),
+        )
+        .chain(
+            |e, c| e == HUMIDITY_ENDPOINT_ID && c == humidity::HUMIDITY_CLUSTER.id,
             Async(humidity_handler.adapt()),
         )
         .chain(
-            EpClMatcher::new(Some(HUMIDITY_ENDPOINT_ID), Some(DescHandler::CLUSTER.id)),
+            |e, c| e == HUMIDITY_ENDPOINT_ID && c == DescHandler::CLUSTER.id,
             Async(desc::DescHandler::new(Dataver::new_rand(&mut weak_rand)).adapt()),
         );
 
@@ -95,7 +98,7 @@ pub async fn matter(
     ));
     stack.startup(&crypto, &mut store).await?;
 
-    if stack.is_commissioned() {
+    if stack.matter().has_fabrics() {
         info!("Device is commissioned; operational traffic will run over Thread");
     } else {
         info!("Device is not commissioned; scan the QR code to commission over BLE");
