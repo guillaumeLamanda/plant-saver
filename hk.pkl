@@ -1,0 +1,57 @@
+amends "package://github.com/jdx/hk/releases/download/v2.8.1/hk@2.8.1#/Config.pkl"
+
+import "package://github.com/jdx/hk/releases/download/v2.8.1/hk@2.8.1#/Builtins.pkl"
+
+// Git hooks, installed with `mise run hooks:install`.
+// Rust steps call mise tasks, so hooks, CI and local runs share one definition.
+
+local fmt = new Step {
+  glob = "**/*.rs"
+  check = "mise run fmt:check"
+  fix = "mise run fmt"
+}
+
+// Clippy builds ESP-IDF on a cold `.embuild/`, so it runs on push, not commit.
+local clippy = new Step {
+  glob =
+    List(
+      "**/*.rs",
+      "Cargo.toml",
+      "Cargo.lock",
+      "build.rs",
+      "sdkconfig.defaults",
+      ".cargo/config.toml",
+    )
+  check = "mise run clippy"
+  exclusive = true
+}
+
+hooks {
+  ["pre-commit"] {
+    fix = true
+    stash = "git"
+    steps {
+      ["fmt"] = fmt
+      ["pkl"] = Builtins.pkl_format
+    }
+  }
+  ["pre-push"] {
+    steps {
+      ["fmt"] = fmt
+      ["clippy"] = clippy
+    }
+  }
+  ["check"] {
+    steps {
+      ["fmt"] = fmt
+      ["clippy"] = clippy
+    }
+  }
+  ["fix"] {
+    fix = true
+    steps {
+      ["fmt"] = fmt
+      ["pkl"] = Builtins.pkl_format
+    }
+  }
+}

@@ -8,6 +8,8 @@ ESP32-C6 embedded Rust firmware: soil-moisture sensor + Matter (smart home) stac
 
 Every workflow — local and CI — is a mise task; `mise tasks` lists them. Run `mise run ci` before pushing: it is exactly what CI runs (`fmt:check`, `clippy` with `-D warnings`, `release`). Add any new workflow as a mise task, never as a raw command in CI or the docs.
 
+Git hooks are managed by hk (`hk.pkl`), installed once per clone with `mise run hooks:install`. `pre-commit` runs `fmt` (and formats `*.pkl`) and stages the fixes; `pre-push` runs `fmt:check` + `clippy`. The release build stays CI-only. Skip the hooks with `HK=0`.
+
 Tasks that **flash hardware** (`run`, `monitor`, `test`, `erase`, and plain `cargo run` / `cargo test`) need a physical ESP32-C6 on `ESPFLASH_PORT` (default in `mise.toml`; override per machine in the gitignored `mise.local.toml`). To check that tests compile without hardware, use `mise run test:build`.
 
 ## Toolchain & env

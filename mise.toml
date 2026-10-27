@@ -15,6 +15,9 @@ lockfile = true
 # riscv target + build-std from .cargo/config.toml and fail.
 "github:esp-rs/espflash" = "4.5.0"
 "github:esp-rs/embuild" = { version = "0.3.2", version_prefix = "ldproxy-v", bin = "ldproxy" }
+# Git hooks (hk.pkl); hk evaluates its config with pkl.
+hk ={ version = "2.8.1", workflow = "release.yml" }
+pkl = "0.32.2"
 
 [env]
 ESPFLASH_PORT = "/dev/cu.usbmodem1101"
@@ -46,6 +49,10 @@ run = "cargo fmt --all -- --check"
 [tasks.ci]
 description = "Run every CI check locally: fmt, clippy, release build."
 depends = ["fmt:check", "clippy", "release"]
+
+[tasks."hooks:install"]
+description = "Install the hk git hooks (pre-commit: fmt; pre-push: fmt check + clippy)."
+run = "hk install --mise"
 
 [tasks.run]
 description = "Build, flash to the ESP32-C6 and monitor (needs hardware)."
