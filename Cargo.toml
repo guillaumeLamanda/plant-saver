@@ -31,7 +31,7 @@ esp-idf-svc = { version = "0.52", default-features = false, features = [
     "critical-section",
 ] }
 anyhow = { version = "*", default-features = false }
-rs-matter = { version = "=0.2.0", default-features = false }
+rs-matter = { version = "=0.4.1", default-features = false }
 rs-matter-stack = { version = "=0.3.1", default-features = false }
 esp-idf-matter = { git = "https://github.com/sysgrok/esp-idf-matter", rev = "3dcc2139f3d135cd5805290ee289807f0d6d9a80" }
 static_cell = "2.1"

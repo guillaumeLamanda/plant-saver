@@ -2144,7 +2144,7 @@ dependencies = [
  "esp-idf-svc",
  "log",
  "rand",
- "rs-matter 0.2.0",
+ "rs-matter 0.4.1",
  "rs-matter-stack 0.3.1",
  "static_cell",
 ]
