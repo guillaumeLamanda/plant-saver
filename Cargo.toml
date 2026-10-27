@@ -33,7 +33,7 @@ esp-idf-svc = { version = "0.52", default-features = false, features = [
 anyhow = { version = "*", default-features = false }
 rs-matter = { version = "=0.2.0", default-features = false }
 rs-matter-stack = { version = "=0.3.1", default-features = false }
-esp-idf-matter = { git = "https://github.com/sysgrok/esp-idf-matter", rev = "3dcc2139f3d135cd5805290ee289807f0d6d9a80" }
+esp-idf-matter = { git = "https://github.com/sysgrok/esp-idf-matter", rev = "670f964c6133097c9506e2f770a0e3065446cc21" }
 static_cell = "2.1"
 rand = "0.8"
 embassy-time-queue-utils = { version = "0.3", features = ["generic-queue-64"] }
