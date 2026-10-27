@@ -3,11 +3,11 @@
 "cargo:espflash" = "latest"
 "rust" = { version = "nightly", components = [
   "rust-src",
-], targets = [
-  "riscv32imac-unknown-none-elf",
-  "rust-fmt",
+  "rustfmt",
   "clippy",
   "rust-analyzer",
+], targets = [
+  "riscv32imac-unknown-none-elf",
 ] }
 
 [env]
