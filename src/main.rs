@@ -3,106 +3,134 @@
 #![recursion_limit = "256"]
 
 mod config;
-#[cfg(esp32h2)]
-mod h2_wireless;
 mod matter_clusters;
 mod matter_device;
 mod sensors;
 
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::Arc;
-use std::{thread, time::Duration};
+use std::thread;
+use std::time::Duration;
 
+use esp_idf_svc::hal::adc::oneshot::config::{AdcChannelConfig, Calibration};
+use esp_idf_svc::hal::adc::oneshot::{AdcChannelDriver, AdcDriver};
+use esp_idf_svc::hal::modem::Modem;
+use esp_idf_svc::hal::task::block_on;
 use esp_idf_svc::hal::task::thread::ThreadSpawnConfiguration;
 
 use crate::config::SoilMoistureConfig;
-use crate::sensors::{EspAdc, SoilMoisture};
+use crate::sensors::SoilMoisture;
 
 fn main() {
+    #[cfg(not(esp32c6))]
+    {
+        panic!("device not supported");
+    };
+
     esp_idf_svc::log::EspLogger::initialize_default();
     log::info!("Booting plant-saver");
 
     let peripherals = esp_idf_svc::hal::peripherals::Peripherals::take().unwrap();
 
-    let adc = esp_idf_svc::hal::adc::oneshot::AdcDriver::new(peripherals.adc1).unwrap();
-
-    #[cfg(not(esp32h2))]
-    let mut moisture_led =
-        esp_idf_svc::hal::gpio::PinDriver::output(peripherals.pins.gpio12).unwrap();
+    let adc = AdcDriver::new(peripherals.adc1).unwrap();
 
     let soil_moisture_config = SoilMoistureConfig::default();
 
-    #[cfg(esp32)]
-    let mut esp_adc = EspAdc::new(&adc, peripherals.pins.gpio36, &soil_moisture_config).unwrap();
+    let adc_channel_config = AdcChannelConfig {
+        attenuation: soil_moisture_config.attenuation,
+        calibration: Calibration::None,
+        ..Default::default()
+    };
+    let channel = AdcChannelDriver::new(adc, peripherals.pins.gpio1, &adc_channel_config).unwrap();
+    let mut soil_moisture = SoilMoisture::new(soil_moisture_config, channel);
 
-    #[cfg(esp32h2)]
-    let mut esp_adc = EspAdc::new(&adc, peripherals.pins.gpio1, &soil_moisture_config).unwrap();
-    let mut soil_moisture = SoilMoisture::new(soil_moisture_config);
-
+    let level = Arc::new(AtomicU8::new(
+        soil_moisture.read().map(|v| v.value()).unwrap_or(0),
+    ));
     let modem = peripherals.modem;
 
-    // Latest SoilMoistureLevel (0–100), shared with the Matter stack: the read
-    // loop publishes here, the RelativeHumidityMeasurement handler reads it
-    // pull-based on each controller attribute read.
-    let soil_moisture_level = Arc::new(AtomicU8::new(0));
-    let level_for_matter = soil_moisture_level.clone();
-
+    let level_for_matter = level.clone();
     ThreadSpawnConfiguration::set(&ThreadSpawnConfiguration {
         name: Some(c"matter"),
         ..Default::default()
     })
     .unwrap();
-
     thread::Builder::new()
         .stack_size(20 * 1024)
         .spawn(move || {
-            if let Err(e) = matter_device::run(modem, level_for_matter) {
-                log::error!("Matter stack aborted: {e:?}");
+            if let Err(e) = run_matter(modem, level_for_matter) {
+                log::error!("Matter aborted: {e:?}");
             }
         })
         .unwrap();
 
-    log_heap("baseline");
-    let mut cycle: u32 = 0;
+    let poll_interval = if cfg!(debug_assertions) {
+        Duration::from_secs(10)
+    } else {
+        Duration::from_secs(600)
+    };
+
     loop {
-        #[cfg(debug_assertions)]
-        let wait_time = 1000;
-        #[cfg(not(debug_assertions))]
-        let wait_time = 1000 * 60 * 10;
-
-        thread::sleep(Duration::from_millis(wait_time));
-
-        match soil_moisture.read_with_raw(&mut esp_adc) {
-            Ok(reading) => {
-                let level = reading.level();
-                let needs_water = soil_moisture.needs_water(level);
-                soil_moisture_level.store(level.value(), Ordering::Relaxed);
-                log::info!(
-                    "soil moisture raw: {}, level: {}, needs water: {}",
-                    reading.raw(),
-                    level.value(),
-                    needs_water
-                );
-                if needs_water {
-                    #[cfg(not(esp32h2))]
-                    moisture_led.set_high().unwrap();
-                } else {
-                    #[cfg(not(esp32h2))]
-                    moisture_led.set_low().unwrap();
-                }
+        match soil_moisture.read() {
+            Ok(moisture_level) => {
+                let value = moisture_level.value();
+                level.store(value, Ordering::Relaxed);
+                log::info!("moisture={value}%");
             }
-            Err(e) => log::warn!("soil moisture read failed, skipping cycle: {}", e),
+            Err(e) => {
+                log::error!("ADC read error: {e:?}");
+            }
         }
-
-        cycle = cycle.wrapping_add(1);
-        if cycle < 10 || cycle % 10 == 0 {
-            log_heap("runtime");
-        }
+        std::thread::sleep(poll_interval);
     }
 }
 
-fn log_heap(tag: &str) {
+pub fn run_matter(modem: Modem, level: Arc<AtomicU8>) -> Result<(), anyhow::Error> {
+    let result = block_on(matter_device::matter(modem, level));
+
+    if let Err(e) = &result {
+        log::error!("Matter aborted execution with error: {e:?}");
+    }
+
+    result
+}
+
+fn log_task_stacks() {
+    use esp_idf_svc::sys;
+
+    for name in [
+        c"matter",
+        c"ThreadDriver Ru",
+        c"BTC_TASK",
+        c"BTU_TASK",
+        c"ble_ll_task",
+        c"hciT",
+        c"sys_evt",
+    ] {
+        let name_str = name.to_str().unwrap();
+
+        // These tasks remain alive for the firmware lifetime. Looking them up
+        // individually avoids FreeRTOS trace metadata and snapshot buffers.
+        let handle = unsafe { sys::xTaskGetHandle(name.as_ptr()) };
+
+        if handle.is_null() {
+            log::warn!("task-stack ({name_str}): not found");
+            continue;
+        }
+
+        // Convert the reported StackType_t units to bytes for this target.
+        let slack_words = unsafe { sys::uxTaskGetStackHighWaterMark2(handle) };
+        let slack_bytes = slack_words * core::mem::size_of::<sys::StackType_t>() as u32;
+
+        log::info!("task-stack ({name_str}): slack_bytes={slack_bytes}");
+    }
+}
+
+pub(crate) fn log_heap(tag: &str) {
     let free = unsafe { esp_idf_svc::sys::esp_get_free_heap_size() };
     let min = unsafe { esp_idf_svc::sys::esp_get_minimum_free_heap_size() };
-    log::info!("heap ({tag}): free={free} bytes, min={min} bytes");
+    let largest = unsafe {
+        esp_idf_svc::sys::heap_caps_get_largest_free_block(esp_idf_svc::sys::MALLOC_CAP_DEFAULT)
+    };
+    log::info!("heap ({tag}): free={free}, largest_block={largest}, min_free_ever={min}");
 }

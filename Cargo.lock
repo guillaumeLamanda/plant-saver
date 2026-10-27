@@ -1074,7 +1074,6 @@ dependencies = [
 [[package]]
 name = "esp-idf-matter"
 version = "0.1.0"
-source = "git+https://github.com/sysgrok/esp-idf-matter?rev=3dcc2139f3d135cd5805290ee289807f0d6d9a80#3dcc2139f3d135cd5805290ee289807f0d6d9a80"
 dependencies = [
  "async-io",
  "edge-nal",
@@ -1094,7 +1093,6 @@ dependencies = [
 [[package]]
 name = "esp-idf-svc"
 version = "0.52.1"
-source = "git+https://github.com/esp-rs/esp-idf-svc?rev=b1c8938751045e82a08bead0b123aa4cf138d147#b1c8938751045e82a08bead0b123aa4cf138d147"
 dependencies = [
  "embassy-futures",
  "embassy-time-driver",

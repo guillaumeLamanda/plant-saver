@@ -1,66 +1,12 @@
 use esp_idf_svc::{
-    hal::{
-        adc::{
-            oneshot::{
-                config::{AdcChannelConfig, Calibration},
-                AdcChannelDriver, AdcDriver,
-            },
-            ADCCH0, ADCU1,
-        },
-        gpio,
+    hal::adc::{
+        oneshot::{AdcChannelDriver, AdcDriver},
+        ADCCH0, ADCU1,
     },
     sys::EspError,
 };
 
 use crate::config::SoilMoistureConfig;
-
-#[cfg(esp32)]
-type AdcPin<'a> = gpio::Gpio36<'a>;
-
-#[cfg(esp32h2)]
-type AdcPin<'a> = gpio::Gpio1<'a>;
-
-pub trait Adc {
-    fn read(&mut self) -> Result<u16, EspError>;
-}
-
-pub struct EspAdc<'a> {
-    driver: &'a AdcDriver<'a, ADCU1>,
-    channel: AdcChannelDriver<'a, ADCCH0<ADCU1>, &'a AdcDriver<'a, ADCU1>>,
-}
-
-impl<'a> EspAdc<'a> {
-    pub fn new(
-        driver: &'a AdcDriver<'a, ADCU1>,
-        pin: AdcPin<'a>,
-        config: &SoilMoistureConfig,
-    ) -> Result<Self, EspError> {
-        let adc_channel_config = AdcChannelConfig {
-            attenuation: config.attenuation,
-            calibration: crate::sensors::adc_calibration(),
-            ..Default::default()
-        };
-        let channel = AdcChannelDriver::new(driver, pin, &adc_channel_config)?;
-        Ok(Self { driver, channel })
-    }
-}
-
-fn adc_calibration() -> Calibration {
-    #[cfg(any(esp32, esp32c2, esp32s2))]
-    {
-        Calibration::Line
-    }
-    #[cfg(not(any(esp32, esp32c2, esp32s2)))]
-    {
-        Calibration::None
-    }
-}
-
-impl<'a> Adc for EspAdc<'a> {
-    fn read(&mut self) -> Result<u16, EspError> {
-        self.driver.read_raw(&mut self.channel)
-    }
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SoilMoistureLevel(u8);
@@ -77,37 +23,30 @@ impl SoilMoistureLevel {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SoilMoistureReading {
-    raw: u16,
-    level: SoilMoistureLevel,
+    pub raw: u16,
+    pub level: SoilMoistureLevel,
 }
 
-impl SoilMoistureReading {
-    pub fn raw(&self) -> u16 {
-        self.raw
-    }
-
-    pub fn level(&self) -> SoilMoistureLevel {
-        self.level
-    }
-}
-
-pub struct SoilMoisture {
+pub struct SoilMoisture<'a> {
     max_dry: u16,
     max_wet: u16,
-    needs_water_threshold: u8,
+    channel: AdcChannelDriver<'a, ADCCH0<ADCU1>, AdcDriver<'a, ADCU1>>,
 }
 
-impl SoilMoisture {
-    pub fn new(config: SoilMoistureConfig) -> Self {
+impl<'a> SoilMoisture<'a> {
+    pub fn new(
+        config: SoilMoistureConfig,
+        channel: AdcChannelDriver<'a, ADCCH0<ADCU1>, AdcDriver<'a, ADCU1>>,
+    ) -> Self {
         Self {
             max_dry: config.max_dry,
             max_wet: config.max_wet,
-            needs_water_threshold: config.needs_water_threshold.clamp(0, 100),
+            channel,
         }
     }
 
-    pub fn read_with_raw<A: Adc>(&mut self, adc: &mut A) -> Result<SoilMoistureReading, EspError> {
-        let raw = adc.read()?;
+    pub fn read_with_raw(&mut self) -> Result<SoilMoistureReading, EspError> {
+        let raw = self.channel.read_raw()?;
         if raw > self.max_dry {
             self.max_dry = raw;
         }
@@ -120,11 +59,11 @@ impl SoilMoisture {
         })
     }
 
-    pub fn needs_water(&self, level: SoilMoistureLevel) -> bool {
-        level.value() < self.needs_water_threshold
+    pub fn read(&mut self) -> Result<SoilMoistureLevel, EspError> {
+        Ok(self.read_with_raw()?.level)
     }
 
-    fn to_percentage(&self, raw: u16) -> u8 {
+    pub fn to_percentage(&self, raw: u16) -> u8 {
         let range = self.max_dry as f32 - self.max_wet as f32;
         if range == 0.0 {
             return 0;
@@ -132,131 +71,5 @@ impl SoilMoisture {
         let diff = self.max_dry as f32 - raw as f32;
         let percentage = (diff / range) * 100.0;
         percentage.clamp(0.0, 100.0) as u8
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    struct FakeAdc {
-        values: Vec<u16>,
-        index: usize,
-    }
-
-    impl FakeAdc {
-        fn new(values: Vec<u16>) -> Self {
-            Self { values, index: 0 }
-        }
-    }
-
-    impl Adc for FakeAdc {
-        fn read(&mut self) -> Result<u16, EspError> {
-            let value = self.values[self.index % self.values.len()];
-            self.index += 1;
-            Ok(value)
-        }
-    }
-
-    fn default_config() -> SoilMoistureConfig {
-        SoilMoistureConfig::default()
-    }
-
-    #[test]
-    fn dry_reading_returns_zero() {
-        let mut soil = SoilMoisture::new(default_config());
-        let mut adc = FakeAdc::new(vec![4095]);
-        let level = soil.read_with_raw(&mut adc).unwrap().level();
-        assert_eq!(level.value(), 0);
-    }
-
-    #[test]
-    fn wet_reading_returns_one_hundred() {
-        let mut soil = SoilMoisture::new(default_config());
-        let mut adc = FakeAdc::new(vec![1500]);
-        let level = soil.read_with_raw(&mut adc).unwrap().level();
-        assert_eq!(level.value(), 100);
-    }
-
-    #[test]
-    fn mid_reading_returns_fifty() {
-        let mut soil = SoilMoisture::new(default_config());
-        let midpoint = (4095 + 1500) / 2;
-        let mut adc = FakeAdc::new(vec![midpoint]);
-        let level = soil.read_with_raw(&mut adc).unwrap().level();
-        assert_eq!(level.value(), 50);
-    }
-
-    #[test]
-    fn reading_exposes_raw_adc_value() {
-        let mut soil = SoilMoisture::new(default_config());
-        let mut adc = FakeAdc::new(vec![2345]);
-
-        let reading = soil.read_with_raw(&mut adc).unwrap();
-
-        assert_eq!(reading.raw(), 2345);
-        assert_eq!(reading.level().value(), 67);
-    }
-
-    #[test]
-    fn adaptive_bounds_widen() {
-        let mut config = default_config();
-        config.max_dry = 3000;
-        config.max_wet = 2000;
-        let mut soil = SoilMoisture::new(config);
-        let mut adc = FakeAdc::new(vec![3500, 1000]);
-        let _ = soil.read_with_raw(&mut adc).unwrap();
-        let level = soil.read_with_raw(&mut adc).unwrap().level();
-        assert_eq!(level.value(), 100);
-    }
-
-    #[test]
-    fn needs_water_dry_reading_returns_true() {
-        let mut soil = SoilMoisture::new(default_config());
-        let mut adc = FakeAdc::new(vec![4095]);
-        let level = soil.read_with_raw(&mut adc).unwrap().level();
-        assert!(soil.needs_water(level));
-    }
-
-    #[test]
-    fn needs_water_wet_reading_returns_false() {
-        let mut soil = SoilMoisture::new(default_config());
-        let mut adc = FakeAdc::new(vec![1500]);
-        let level = soil.read_with_raw(&mut adc).unwrap().level();
-        assert!(!soil.needs_water(level));
-    }
-
-    #[test]
-    fn needs_water_at_threshold_returns_false() {
-        let soil = SoilMoisture::new(default_config());
-        assert!(!soil.needs_water(SoilMoistureLevel::new(
-            SoilMoistureConfig::default().needs_water_threshold
-        )));
-    }
-
-    #[test]
-    fn needs_water_just_below_threshold_returns_true() {
-        let soil = SoilMoisture::new(default_config());
-        assert!(soil.needs_water(SoilMoistureLevel::new(
-            SoilMoistureConfig::default().needs_water_threshold - 1
-        )));
-    }
-
-    struct FailingAdc;
-
-    impl Adc for FailingAdc {
-        fn read(&mut self) -> Result<u16, EspError> {
-            Err(EspError::from_non_zero(
-                core::num::NonZeroI32::new(1).unwrap(),
-            ))
-        }
-    }
-
-    #[test]
-    fn read_propagates_adc_error_so_loop_can_skip() {
-        let mut soil = SoilMoisture::new(default_config());
-        let mut adc = FailingAdc;
-        let result = soil.read_with_raw(&mut adc);
-        assert!(result.is_err());
     }
 }

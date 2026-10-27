@@ -1,16 +1,4 @@
-//! H2 Thread Matter wireless shim.
-//!
-//! The `esp_idf_matter::wireless` module is gated `not(esp32h2)` in the pinned
-//! crate revision, so EspThreadMatterStack / EspMatterThread aren't available.
-//! This module provides the minimum types for a Thread+BLE Matter stack on H2,
-//! replicating `wireless/thread.rs` and the `EspGatt` embedding.
-
 use alloc::sync::Arc;
-
-use esp_idf_matter::ble::{EspBtpGattContext, EspBtpGattPeripheral};
-use esp_idf_matter::error::to_net_error;
-use esp_idf_matter::netif::{EspMatterNetStack, EspMatterNetif};
-use esp_idf_matter::thread::{EspMatterThreadCtl, EspMatterThreadSrp};
 
 use esp_idf_svc::bt::{self, BtDriver};
 use esp_idf_svc::eventloop::EspSystemEventLoop;
@@ -24,59 +12,23 @@ use log::info;
 use rs_matter_stack::matter::dm::clusters::gen_diag::InterfaceTypeEnum;
 use rs_matter_stack::matter::dm::networks::wireless::Thread;
 use rs_matter_stack::matter::error::Error;
-use rs_matter_stack::matter::utils::init::{init, Init};
+
 use rs_matter_stack::network::{Embedding, Network};
-use rs_matter_stack::wireless::{
-    Gatt, GattTask, ThreadCoex, ThreadCoexTask, ThreadTask, WirelessBle,
-};
-use rs_matter_stack::MatterStack;
+use rs_matter_stack::wireless::{Gatt, GattTask, ThreadCoex, ThreadCoexTask, ThreadTask};
+
+use crate::ble::{EspBtpGattContext, EspBtpGattPeripheral};
+use crate::error::to_net_error;
+use crate::netif::{EspMatterNetStack, EspMatterNetif};
+use crate::thread::{EspMatterThreadCtl, EspMatterThreadSrp};
+
+use super::{EspWirelessMatterStack, GATTS_APP_ID};
 
 extern crate alloc;
 
-const GATTS_APP_ID: u16 = 0;
+/// A type alias for an ESP-IDF Matter stack running over Thread (and BLE, during commissioning).
+pub type EspThreadMatterStack<'a, const B: usize, E> = EspWirelessMatterStack<'a, B, Thread, E>;
 
-pub type EspThreadMatterStack<'a, const B: usize, E> =
-    MatterStack<'a, B, WirelessBle<Thread, EspGattH2<E>>>;
-
-pub struct EspGattH2<E = ()> {
-    btp_gatt_context: EspBtpGattContext,
-    embedding: E,
-}
-
-impl<E> EspGattH2<E>
-where
-    E: Embedding,
-{
-    const fn new() -> Self {
-        Self {
-            btp_gatt_context: EspBtpGattContext::new(),
-            embedding: E::INIT,
-        }
-    }
-
-    fn init() -> impl Init<Self> {
-        init!(Self {
-            btp_gatt_context <- EspBtpGattContext::init(),
-            embedding <- E::init(),
-        })
-    }
-
-    pub fn context(&self) -> &EspBtpGattContext {
-        &self.btp_gatt_context
-    }
-}
-
-impl<E> Embedding for EspGattH2<E>
-where
-    E: Embedding,
-{
-    const INIT: Self = Self::new();
-
-    fn init() -> impl Init<Self> {
-        EspGattH2::init()
-    }
-}
-
+/// A `Thread` trait implementation via ESP-IDF's Thread/BT modem
 pub struct EspMatterThread<'a, 'd> {
     modem: Modem<'d>,
     sysloop: EspSystemEventLoop,
@@ -86,6 +38,7 @@ pub struct EspMatterThread<'a, 'd> {
 }
 
 impl<'a, 'd> EspMatterThread<'a, 'd> {
+    /// Create a new instance of the `EspMatterThread` type.
     pub fn new<const B: usize, E>(
         modem: Modem<'d>,
         sysloop: EspSystemEventLoop,
@@ -105,6 +58,7 @@ impl<'a, 'd> EspMatterThread<'a, 'd> {
         )
     }
 
+    /// Wrap existing parts into a new instance of the `EspMatterThread` type.
     pub fn wrap(
         modem: Modem<'d>,
         sysloop: EspSystemEventLoop,
@@ -128,6 +82,7 @@ impl Gatt for EspMatterThread<'_, '_> {
         A: GattTask,
     {
         let bt = BtDriver::new(unsafe { self.modem.reborrow() }, Some(self.nvs.clone())).unwrap();
+
         let peripheral =
             EspBtpGattPeripheral::<bt::Ble>::new(GATTS_APP_ID, bt, self.ble_context).unwrap();
 
@@ -136,6 +91,11 @@ impl Gatt for EspMatterThread<'_, '_> {
 }
 
 impl rs_matter_stack::wireless::Thread for EspMatterThread<'_, '_> {
+    // The operational task receives `&net_ctl` (a `&EspMatterThreadCtl`) built from a
+    // locally-created `EspThread<'_, Node>`, so the chain net-ctl type — and hence this
+    // associated type — is `&'a EspMatterThreadCtl<'a, 'a, Node>`. Naming it here lets
+    // the commissioning and operational handler chains share one `WirelessNetCtl` type
+    // (single monomorphization).
     type NetCtl<'a>
         = &'a EspMatterThreadCtl<'a, 'a, Node>
     where
@@ -182,7 +142,11 @@ impl ThreadCoex for EspMatterThread<'_, '_> {
     {
         let modem = unsafe { self.modem.reborrow() };
 
+        #[cfg(not(esp32c6))]
         let (thread_p, bt_p) = modem.split();
+
+        #[cfg(esp32c6)]
+        let (_, thread_p, bt_p) = modem.split();
 
         let mut thread = EspThread::new(
             thread_p,
@@ -204,6 +168,7 @@ impl ThreadCoex for EspMatterThread<'_, '_> {
         let net_ctl = EspMatterThreadCtl::new(&thread, self.sysloop.clone());
         let mut mdns = EspMatterThreadSrp::new(&thread);
         let bt = BtDriver::new(bt_p, Some(self.nvs.clone())).unwrap();
+
         let mut peripheral =
             EspBtpGattPeripheral::<bt::Ble>::new(GATTS_APP_ID, bt, self.ble_context).unwrap();
 
