@@ -11,14 +11,15 @@
 ] }
 
 [env]
-MCU = "esp32h2"
+MCU = "esp32c6"
+ESP_IDF_TARGET = "esp32c6"
 CARGO_BUILD_TARGET = "riscv32imac-esp-espidf"
 ESPFLASH_PORT = "/dev/cu.usbmodem1101"
 
 [tasks.build]
 description = "Build the ESP32 firmware (debug)."
 run = '''
-cargo build
+cargo build # --features zeroconf
 '''
 
 [tasks.release]

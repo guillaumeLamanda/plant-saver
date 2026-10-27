@@ -34,7 +34,7 @@ jobs:
         uses: esp-rs/xtensa-toolchain@v1.5
         with:
           default: true
-          buildtargets: esp32
+          buildtargets: esp32c6
           ldproxy: true
       - name: Run command
         run: cargo ${{ matrix.action.command }} ${{ matrix.action.args }}

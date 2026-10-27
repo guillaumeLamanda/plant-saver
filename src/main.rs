@@ -3,7 +3,6 @@
 #![recursion_limit = "256"]
 
 mod config;
-mod h2_wireless;
 mod matter_clusters;
 mod matter_device;
 mod sensors;
@@ -22,14 +21,13 @@ use esp_idf_svc::hal::task::thread::ThreadSpawnConfiguration;
 use crate::config::SoilMoistureConfig;
 use crate::sensors::SoilMoisture;
 
-#[cfg(not(esp32h2))]
 fn main() {
-    panic!("device not supported")
-}
+    #[cfg(not(esp32c6))]
+    {
+        panic!("device not supported");
+    };
 
-fn main() {
     esp_idf_svc::log::EspLogger::initialize_default();
-
     log::info!("Booting plant-saver");
 
     let peripherals = esp_idf_svc::hal::peripherals::Peripherals::take().unwrap();

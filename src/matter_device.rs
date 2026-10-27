@@ -31,7 +31,7 @@ use crate::matter_clusters::humidity::{self, RelativeHumidityHandler, HUMIDITY_E
 
 const BUMP_SIZE: usize = 17000;
 
-use crate::h2_wireless::{EspMatterThread, EspThreadMatterStack};
+use esp_idf_matter::wireless::{EspMatterThread, EspThreadMatterStack};
 static MATTER_STACK: StaticCell<EspThreadMatterStack<BUMP_SIZE, ()>> = StaticCell::new();
 
 const DEV_TYPE_HUMIDITY_SENSOR: DeviceType = DeviceType {
@@ -39,7 +39,7 @@ const DEV_TYPE_HUMIDITY_SENSOR: DeviceType = DeviceType {
     drev: 1,
 };
 
-#[cfg(esp32h2)]
+#[cfg(esp32c6)]
 const NODE: Node = Node {
     endpoints: &[
         EspThreadMatterStack::<0, ()>::root_endpoint(),
