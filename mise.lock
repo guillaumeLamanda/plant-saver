@@ -40,44 +40,51 @@ url = "https://github.com/esp-rs/embuild/releases/download/ldproxy-v0.3.2/ldprox
 url_api = "https://api.github.com/repos/esp-rs/embuild/releases/assets/70847057"
 
 [[tools."github:esp-rs/espflash"]]
-version = "4.5.0"
+version = "4.7.0"
 backend = "github:esp-rs/espflash"
-specifiers = ["4.5.0"]
+specifiers = ["v4.7.0"]
 
 [tools."github:esp-rs/espflash"."platforms.linux-arm64"]
-checksum = "sha256:2d5972b9c18fc89bf253e60fe6df6a4f8db3aee5db0166b2c97b53bd21c01f09"
-url = "https://github.com/esp-rs/espflash/releases/download/v4.5.0/espflash-aarch64-unknown-linux-gnu.zip"
-url_api = "https://api.github.com/repos/esp-rs/espflash/releases/assets/471130375"
+checksum = "sha256:3158e1c78f3e80ad0389c1d925b69736e1955a60b3cadf932e6d0d74d731b448"
+checksum_source = "mise-versions"
+url = "https://github.com/esp-rs/espflash/releases/download/v4.7.0/espflash-aarch64-unknown-linux-gnu.zip"
+url_api = "https://api.github.com/repos/esp-rs/espflash/releases/assets/688825148"
 
 [tools."github:esp-rs/espflash"."platforms.linux-arm64-musl"]
-checksum = "sha256:2d5972b9c18fc89bf253e60fe6df6a4f8db3aee5db0166b2c97b53bd21c01f09"
-url = "https://github.com/esp-rs/espflash/releases/download/v4.5.0/espflash-aarch64-unknown-linux-gnu.zip"
-url_api = "https://api.github.com/repos/esp-rs/espflash/releases/assets/471130375"
+checksum = "sha256:a2081c002f6050a287007a93ba01cdd4c9d111181b69d5ddf7bdb71d33841c65"
+checksum_source = "mise-versions"
+url = "https://github.com/esp-rs/espflash/releases/download/v4.7.0/espflash-aarch64-unknown-linux-musl.zip"
+url_api = "https://api.github.com/repos/esp-rs/espflash/releases/assets/688829879"
 
 [tools."github:esp-rs/espflash"."platforms.linux-x64"]
-checksum = "sha256:dcd7fd822f247df18966935bbb10c7cb4b700c87172349633e9e323ee2542717"
-url = "https://github.com/esp-rs/espflash/releases/download/v4.5.0/espflash-x86_64-unknown-linux-gnu.zip"
-url_api = "https://api.github.com/repos/esp-rs/espflash/releases/assets/471129817"
+checksum = "sha256:8ab3bafeb212ccb1d7a9c422936b9bc86f8b00fe2731053ed8ab875c8d2f0c4d"
+checksum_source = "mise-versions"
+url = "https://github.com/esp-rs/espflash/releases/download/v4.7.0/espflash-x86_64-unknown-linux-gnu.zip"
+url_api = "https://api.github.com/repos/esp-rs/espflash/releases/assets/688815908"
 
 [tools."github:esp-rs/espflash"."platforms.linux-x64-musl"]
-checksum = "sha256:542c5cc81f0cca384cbead1cacb7ccc9f35072a989b2de0fb95333d814272c22"
-url = "https://github.com/esp-rs/espflash/releases/download/v4.5.0/espflash-x86_64-unknown-linux-musl.zip"
-url_api = "https://api.github.com/repos/esp-rs/espflash/releases/assets/471130014"
+checksum = "sha256:a9bf20c76ab42d0d4330bbc33707c4424d5541f5129149d889dbfa8dab476910"
+checksum_source = "mise-versions"
+url = "https://github.com/esp-rs/espflash/releases/download/v4.7.0/espflash-x86_64-unknown-linux-musl.zip"
+url_api = "https://api.github.com/repos/esp-rs/espflash/releases/assets/688825584"
 
 [tools."github:esp-rs/espflash"."platforms.macos-arm64"]
-checksum = "sha256:6614ff70e523a6bce5f4ccc6459b77275f5e7e900429004bb7eec463c95db28a"
-url = "https://github.com/esp-rs/espflash/releases/download/v4.5.0/espflash-aarch64-apple-darwin.zip"
-url_api = "https://api.github.com/repos/esp-rs/espflash/releases/assets/471129316"
+checksum = "sha256:4313a4cf3e05036d4e1d8edeef938a11661eb5b9ba5759cabbf48ad4f6fbc180"
+checksum_source = "mise-versions"
+url = "https://github.com/esp-rs/espflash/releases/download/v4.7.0/espflash-aarch64-apple-darwin.zip"
+url_api = "https://api.github.com/repos/esp-rs/espflash/releases/assets/688815679"
 
 [tools."github:esp-rs/espflash"."platforms.macos-x64"]
-checksum = "sha256:3c5cb664742d883e4304d4fc611fc875b27a8f8d7d105d22da2f615eb36888a0"
-url = "https://github.com/esp-rs/espflash/releases/download/v4.5.0/espflash-x86_64-apple-darwin.zip"
-url_api = "https://api.github.com/repos/esp-rs/espflash/releases/assets/471129244"
+checksum = "sha256:3e3ca415f15f58000d351ca8dd22137c2d04384a8153f65b831553074601ee03"
+checksum_source = "mise-versions"
+url = "https://github.com/esp-rs/espflash/releases/download/v4.7.0/espflash-x86_64-apple-darwin.zip"
+url_api = "https://api.github.com/repos/esp-rs/espflash/releases/assets/688906558"
 
 [tools."github:esp-rs/espflash"."platforms.windows-x64"]
-checksum = "sha256:854c82c947c20e7f337f120f0398042ed1760f2269cb0f9be3d2beae3b66fbfb"
-url = "https://github.com/esp-rs/espflash/releases/download/v4.5.0/espflash-x86_64-pc-windows-msvc.zip"
-url_api = "https://api.github.com/repos/esp-rs/espflash/releases/assets/471130770"
+checksum = "sha256:2b10333e4f4f1a26024259b0cc1942ba17f27b3c530621c6111f4c10ac70213e"
+checksum_source = "mise-versions"
+url = "https://github.com/esp-rs/espflash/releases/download/v4.7.0/espflash-x86_64-pc-windows-msvc.zip"
+url_api = "https://api.github.com/repos/esp-rs/espflash/releases/assets/688833427"
 
 [[tools.hk]]
 version = "2.8.1"
