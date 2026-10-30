@@ -13,7 +13,7 @@ lockfile = true
 [tools]
 # Prebuilt release binaries: `cargo install` from this repo would pick up the
 # riscv target + build-std from .cargo/config.toml and fail.
-"github:esp-rs/espflash" = "4.5.0"
+"github:esp-rs/espflash" = "v4.7.0"
 "github:esp-rs/embuild" = { version = "0.3.2", version_prefix = "ldproxy-v", bin = "ldproxy" }
 # Git hooks (hk.pkl); hk evaluates its config with pkl.
 hk ={ version = "2.10.0", workflow = "release.yml" }
