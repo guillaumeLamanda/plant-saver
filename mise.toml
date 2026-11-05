@@ -17,7 +17,7 @@ lockfile = true
 "github:esp-rs/embuild" = { version = "0.3.2", version_prefix = "ldproxy-v", bin = "ldproxy" }
 # Git hooks (hk.pkl); hk evaluates its config with pkl.
 hk ={ version = "2.11.1", workflow = "release.yml" }
-pkl = "0.32.2"
+pkl = "0.33.0"
 
 [env]
 ESPFLASH_PORT = "/dev/cu.usbmodem1101"
