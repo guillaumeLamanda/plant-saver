@@ -1,16 +1,21 @@
 //! Matter `RelativeHumidityMeasurement` cluster (id 0x0405) on endpoint 1.
 //!
-//! Pull-based: `measured_value` reads the latest `SoilMoistureLevel` (0–100)
-//! from a shared atomic cell that the main sensor loop updates. No sensor
-//! logic lives here — the value originates in the `SoilMoisture` module and is
-//! only wired to the cluster by this handler.
+//! `measured_value` reads the latest `SoilMoistureLevel` (0–100) from a
+//! [`SharedSoilMoistureLevel`] that the main sensor loop updates. When the
+//! level changes, the handler's background task bumps the cluster's data
+//! version and notifies the data model, so subscriptions get a report and
+//! data-version-filtered reads return the new value instead of "unchanged".
+//! No sensor logic lives here — the value originates in the `SoilMoisture`
+//! module and is only wired to the cluster by this handler.
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU8, Ordering};
 
-use esp_idf_matter::matter::dm::{Cluster, Dataver, ReadContext};
+use esp_idf_matter::matter::dm::{Cluster, Dataver, HandlerContext, ReadContext};
 use esp_idf_matter::matter::error::Error;
 use esp_idf_matter::matter::tlv::Nullable;
+use esp_idf_matter::matter::utils::sync::Notification;
+use esp_idf_matter::matter::utils::sync::blocking::raw::StdRawMutex;
 
 use rs_matter::with;
 
@@ -27,22 +32,55 @@ pub const HUMIDITY_ENDPOINT_ID: u16 = 1;
 pub const HUMIDITY_CLUSTER: Cluster<'static> =
     FULL_CLUSTER.with_attrs(with!(required)).with_cmds(with!());
 
-/// Pull-based handler for the `RelativeHumidityMeasurement` cluster.
+/// The latest `SoilMoistureLevel` (0–100), shared between the sensor loop
+/// (writer, plain thread) and the Matter handler (reader, async task on the
+/// Matter thread).
+///
+/// `set` wakes the handler only when the value actually changes. The
+/// notification uses a `std` mutex because the writer and the reader live on
+/// different threads (rs-matter's default raw mutex is not thread-safe here).
+pub struct SharedSoilMoistureLevel {
+    value: AtomicU8,
+    changed: Notification<StdRawMutex>,
+}
+
+impl SharedSoilMoistureLevel {
+    pub fn new(value: u8) -> Self {
+        Self {
+            value: AtomicU8::new(value),
+            changed: Notification::new(),
+        }
+    }
+
+    pub fn get(&self) -> u8 {
+        self.value.load(Ordering::Relaxed)
+    }
+
+    /// Store `value`; wake the Matter handler if it differs from the last one.
+    pub fn set(&self, value: u8) {
+        if self.value.swap(value, Ordering::Relaxed) != value {
+            self.changed.notify();
+        }
+    }
+}
+
+/// Handler for the `RelativeHumidityMeasurement` cluster.
 ///
 /// `measured_value` returns the latest `SoilMoistureLevel` (0–100) from the
 /// shared `level` cell; `min_measured_value` is 0; `max_measured_value` is 100.
 /// Each read fetches the current value — nothing is cached in the handler.
+/// The background `run` task reports changes (see the module docs).
 ///
 /// The Matter cluster encodes these as `u16` in **hundredths of a percent**
 /// (0 = 0.00%, 10000 = 100.00%), so the 0–100 `SoilMoistureLevel` is scaled
 /// ×100 at the handler boundary. The sensor domain stays 0–100.
 pub struct RelativeHumidityHandler {
     dataver: Dataver,
-    level: Arc<AtomicU8>,
+    level: Arc<SharedSoilMoistureLevel>,
 }
 
 impl RelativeHumidityHandler {
-    pub fn new(dataver: Dataver, level: Arc<AtomicU8>) -> Self {
+    pub fn new(dataver: Dataver, level: Arc<SharedSoilMoistureLevel>) -> Self {
         Self { dataver, level }
     }
 
@@ -70,9 +108,7 @@ impl ClusterHandler for RelativeHumidityHandler {
     }
 
     fn measured_value(&self, _ctx: impl ReadContext) -> Result<Nullable<u16>, Error> {
-        Ok(Nullable::some(
-            self.level.load(Ordering::Relaxed) as u16 * HUNDREDTHS,
-        ))
+        Ok(Nullable::some(self.level.get() as u16 * HUNDREDTHS))
     }
 
     fn min_measured_value(&self, _ctx: impl ReadContext) -> Result<Nullable<u16>, Error> {
@@ -81,5 +117,20 @@ impl ClusterHandler for RelativeHumidityHandler {
 
     fn max_measured_value(&self, _ctx: impl ReadContext) -> Result<Nullable<u16>, Error> {
         Ok(Nullable::some(100 * HUNDREDTHS))
+    }
+
+    /// Report every level change: bump the data version (so filtered reads
+    /// see a new version) and flag `measured_value` for subscription reports.
+    async fn run(&self, ctx: impl HandlerContext) -> Result<(), Error> {
+        loop {
+            self.level.changed.wait().await;
+
+            self.dataver_changed();
+            ctx.notify_attr_changed(
+                HUMIDITY_ENDPOINT_ID,
+                Self::CLUSTER.id,
+                AttributeId::MeasuredValue as _,
+            );
+        }
     }
 }
