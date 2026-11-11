@@ -6,7 +6,7 @@ use esp_idf_svc::{
     sys::EspError,
 };
 
-use crate::config::SoilMoistureConfig;
+use crate::config::{SAMPLES_PER_READ, SoilMoistureConfig};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SoilMoistureLevel(u8);
@@ -30,6 +30,8 @@ pub struct SoilMoistureReading {
 pub struct SoilMoisture<'a> {
     max_dry: u16,
     max_wet: u16,
+    min_plausible_raw: u16,
+    max_plausible_raw: u16,
     channel: AdcChannelDriver<'a, ADCCH1<ADCU1>, AdcDriver<'a, ADCU1>>,
 }
 
@@ -41,18 +43,48 @@ impl<'a> SoilMoisture<'a> {
         Self {
             max_dry: config.max_dry,
             max_wet: config.max_wet,
+            min_plausible_raw: config.min_plausible_raw,
+            max_plausible_raw: config.max_plausible_raw,
             channel,
         }
     }
 
+    /// Current calibration bounds as `(wet, dry)` raw values.
+    pub fn bounds(&self) -> (u16, u16) {
+        (self.max_wet, self.max_dry)
+    }
+
+    /// Median of `SAMPLES_PER_READ` raw samples. One-shot reads take
+    /// microseconds, so the burst still reflects a single instant.
+    fn read_median_raw(&mut self) -> Result<u16, EspError> {
+        let mut samples = [0u16; SAMPLES_PER_READ];
+        for sample in &mut samples {
+            *sample = self.channel.read_raw()?;
+        }
+        samples.sort_unstable();
+        Ok(samples[SAMPLES_PER_READ / 2])
+    }
+
     pub fn read_with_raw(&mut self) -> Result<SoilMoistureReading, EspError> {
-        let raw = self.channel.read_raw()?;
-        if raw > self.max_dry {
-            self.max_dry = raw;
+        let raw = self.read_median_raw()?;
+
+        // Adapt only on plausible readings: a faulty probe must not widen the
+        // bounds for good and squash every later reading.
+        if (self.min_plausible_raw..=self.max_plausible_raw).contains(&raw) {
+            if raw > self.max_dry {
+                self.max_dry = raw;
+            }
+            if raw < self.max_wet {
+                self.max_wet = raw;
+            }
+        } else {
+            log::warn!(
+                "soil-moisture raw={raw} outside plausible range {}..={}; calibration unchanged",
+                self.min_plausible_raw,
+                self.max_plausible_raw
+            );
         }
-        if raw < self.max_wet {
-            self.max_wet = raw;
-        }
+
         Ok(SoilMoistureReading {
             raw,
             level: SoilMoistureLevel::new(self.to_percentage(raw)),

@@ -1,7 +1,6 @@
 use core::pin::pin;
 
 use std::sync::Arc;
-use std::sync::atomic::AtomicU8;
 
 use esp_idf_matter::init_async_io;
 use esp_idf_matter::matter::crypto::{Crypto, default_crypto};
@@ -26,7 +25,9 @@ use log::info;
 use static_cell::StaticCell;
 
 use crate::log_heap;
-use crate::matter_clusters::humidity::{self, HUMIDITY_ENDPOINT_ID, RelativeHumidityHandler};
+use crate::matter_clusters::humidity::{
+    self, HUMIDITY_ENDPOINT_ID, RelativeHumidityHandler, SharedSoilMoistureLevel,
+};
 
 const BUMP_SIZE: usize = 17000;
 
@@ -51,7 +52,7 @@ const NODE: Node = Node {
 
 pub async fn matter(
     mut modem: Modem<'_>,
-    soil_moisture_level: Arc<AtomicU8>,
+    soil_moisture_level: Arc<SharedSoilMoistureLevel>,
 ) -> Result<(), anyhow::Error> {
     let sysloop = EspSystemEventLoop::take()?;
     let nvs = EspDefaultNvsPartition::take()?;

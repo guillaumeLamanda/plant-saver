@@ -9,7 +9,6 @@ mod matter_device;
 mod sensors;
 
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU8, Ordering};
 use std::thread;
 use std::time::Duration;
 
@@ -20,6 +19,7 @@ use esp_idf_svc::hal::task::block_on;
 use esp_idf_svc::hal::task::thread::ThreadSpawnConfiguration;
 
 use crate::config::SoilMoistureConfig;
+use crate::matter_clusters::humidity::SharedSoilMoistureLevel;
 use crate::sensors::SoilMoisture;
 
 fn main() {
@@ -40,7 +40,7 @@ fn main() {
     let channel = AdcChannelDriver::new(adc, peripherals.pins.gpio1, &adc_channel_config).unwrap();
     let mut soil_moisture = SoilMoisture::new(soil_moisture_config, channel);
 
-    let level = Arc::new(AtomicU8::new(
+    let level = Arc::new(SharedSoilMoistureLevel::new(
         soil_moisture.read().map(|v| v.value()).unwrap_or(0),
     ));
     let modem = peripherals.modem;
@@ -67,11 +67,17 @@ fn main() {
     };
 
     loop {
-        match soil_moisture.read() {
-            Ok(moisture_level) => {
-                let value = moisture_level.value();
-                level.store(value, Ordering::Relaxed);
-                log::info!("moisture={value}%");
+        match soil_moisture.read_with_raw() {
+            Ok(reading) => {
+                let value = reading.level.value();
+                level.set(value);
+                // `raw` and the bounds are logged so the dry/wet calibration in
+                // `config.rs` can be measured on the real sensor.
+                let (wet, dry) = soil_moisture.bounds();
+                log::info!(
+                    "moisture={value}% raw={} bounds(wet={wet}, dry={dry})",
+                    reading.raw
+                );
             }
             Err(e) => {
                 log::error!("ADC read error: {e:?}");
@@ -81,7 +87,7 @@ fn main() {
     }
 }
 
-pub fn run_matter(modem: Modem, level: Arc<AtomicU8>) -> Result<(), anyhow::Error> {
+pub fn run_matter(modem: Modem, level: Arc<SharedSoilMoistureLevel>) -> Result<(), anyhow::Error> {
     block_on(matter_device::matter(modem, level))
 }
 
