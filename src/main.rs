@@ -71,12 +71,13 @@ fn main() {
             Ok(reading) => {
                 let value = reading.level.value();
                 level.set(value);
-                // `raw` and the bounds are logged so the dry/wet calibration in
-                // `config.rs` can be measured on the real sensor.
+                // `raw` is this poll's value, unsmoothed: read it when
+                // measuring the dry/wet bounds in `config.rs`.
                 let (wet, dry) = soil_moisture.bounds();
                 log::info!(
-                    "moisture={value}% raw={} bounds(wet={wet}, dry={dry})",
-                    reading.raw
+                    "moisture={value}% raw={} smoothed={} bounds(wet={wet}, dry={dry})",
+                    reading.raw,
+                    reading.smoothed_raw
                 );
             }
             Err(e) => {

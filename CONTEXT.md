@@ -20,4 +20,4 @@ A seam that supplies raw voltage readings from an analog-to-digital converter. P
 
 ## Calibration
 
-The mapping from raw ADC readings to the physical dry and wet extremes used by `SoilMoisture`. Starts from configured bounds and can adapt automatically as the sensor observes new minimum and maximum readings.
+The mapping from raw ADC readings to the physical dry and wet extremes used by `SoilMoisture`. The bounds are fixed, measured in soil: dry soil is 0%, freshly watered soil is 100%. They do not adapt at runtime, and air or water readings never move them.

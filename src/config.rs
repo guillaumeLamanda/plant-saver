@@ -1,21 +1,29 @@
 use esp_idf_svc::hal::adc::attenuation;
 
 /// Raw ADC samples taken per reading; their median is the reading, so a single
-/// glitched sample neither shows up in the level nor moves the bounds. Odd, so
-/// the median is one sample.
+/// glitched sample does not show up in the level. Odd, so the median is one
+/// sample.
 pub const SAMPLES_PER_READ: usize = 9;
 
+/// Weight of a new reading in the exponential moving average over readings
+/// (0 < α ≤ 1). 0.5 halves the effect of a one-off odd reading while a real
+/// change (watering) shows up within two or three polls.
+pub const SMOOTHING_ALPHA: f32 = 0.5;
+
 pub struct SoilMoistureConfig {
-    /// Starting raw value for 0% (dry). Must sit below the ADC ceiling (4095):
-    /// the bounds only widen, so a ceiling value could never adapt and would
-    /// squash the scale. Placeholder until measured on the real sensor in dry
-    /// soil (the main loop logs `raw`).
-    pub max_dry: u16,
-    /// Starting raw value for 100% (wet). Measure with the probe in water.
-    pub max_wet: u16,
+    /// Raw value for 0%: the probe pushed to its line in dry soil (the plant
+    /// needs water). Measured on the real probe: dry potting soil ≈ 2786,
+    /// air ≈ 2794.
+    pub dry_raw: u16,
+    /// Raw value for 100%: the probe in freshly watered soil, ~15 min after
+    /// watering. Not water itself (≈ 1326): soil never gets that wet, so a
+    /// water bound squashes every soil reading into the bottom of the scale.
+    /// 2100 is an estimate from soil watered 2 days earlier (≈ 2164); replace
+    /// it with a fresh-watering measurement.
+    pub wet_raw: u16,
     /// Readings outside this raw range are treated as faults (probe
-    /// disconnected, shorted or unpowered): they still produce a level but
-    /// never move the calibration bounds.
+    /// disconnected, shorted or unpowered): they are logged and ignored, and
+    /// the level keeps its last value.
     pub min_plausible_raw: u16,
     pub max_plausible_raw: u16,
     pub attenuation: attenuation::adc_atten_t,
@@ -27,8 +35,8 @@ pub struct SoilMoistureConfig {
 impl Default for SoilMoistureConfig {
     fn default() -> Self {
         Self {
-            max_dry: 2700,
-            max_wet: 1500,
+            dry_raw: 2780,
+            wet_raw: 2100,
             min_plausible_raw: 500,
             max_plausible_raw: 4000,
             attenuation: attenuation::DB_12,

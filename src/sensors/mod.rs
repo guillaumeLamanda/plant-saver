@@ -6,7 +6,7 @@ use esp_idf_svc::{
     sys::EspError,
 };
 
-use crate::config::{SAMPLES_PER_READ, SoilMoistureConfig};
+use crate::config::{SAMPLES_PER_READ, SMOOTHING_ALPHA, SoilMoistureConfig};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SoilMoistureLevel(u8);
@@ -23,15 +23,20 @@ impl SoilMoistureLevel {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SoilMoistureReading {
+    /// This poll's raw value (median of one burst).
     pub raw: u16,
+    /// Moving average of plausible raw values; the level is computed from it.
+    pub smoothed_raw: u16,
     pub level: SoilMoistureLevel,
 }
 
 pub struct SoilMoisture<'a> {
-    max_dry: u16,
-    max_wet: u16,
+    dry_raw: u16,
+    wet_raw: u16,
     min_plausible_raw: u16,
     max_plausible_raw: u16,
+    /// `None` until the first plausible reading.
+    smoothed_raw: Option<f32>,
     channel: AdcChannelDriver<'a, ADCCH1<ADCU1>, AdcDriver<'a, ADCU1>>,
 }
 
@@ -41,17 +46,18 @@ impl<'a> SoilMoisture<'a> {
         channel: AdcChannelDriver<'a, ADCCH1<ADCU1>, AdcDriver<'a, ADCU1>>,
     ) -> Self {
         Self {
-            max_dry: config.max_dry,
-            max_wet: config.max_wet,
+            dry_raw: config.dry_raw,
+            wet_raw: config.wet_raw,
             min_plausible_raw: config.min_plausible_raw,
             max_plausible_raw: config.max_plausible_raw,
+            smoothed_raw: None,
             channel,
         }
     }
 
-    /// Current calibration bounds as `(wet, dry)` raw values.
+    /// Calibration bounds as `(wet, dry)` raw values.
     pub fn bounds(&self) -> (u16, u16) {
-        (self.max_wet, self.max_dry)
+        (self.wet_raw, self.dry_raw)
     }
 
     /// Median of `SAMPLES_PER_READ` raw samples. One-shot reads take
@@ -68,26 +74,30 @@ impl<'a> SoilMoisture<'a> {
     pub fn read_with_raw(&mut self) -> Result<SoilMoistureReading, EspError> {
         let raw = self.read_median_raw()?;
 
-        // Adapt only on plausible readings: a faulty probe must not widen the
-        // bounds for good and squash every later reading.
+        // A faulty probe (disconnected, shorted, unpowered) must not drag the
+        // average: skip it and keep the last level.
         if (self.min_plausible_raw..=self.max_plausible_raw).contains(&raw) {
-            if raw > self.max_dry {
-                self.max_dry = raw;
-            }
-            if raw < self.max_wet {
-                self.max_wet = raw;
-            }
+            let raw = f32::from(raw);
+            self.smoothed_raw = Some(match self.smoothed_raw {
+                Some(prev) => prev + SMOOTHING_ALPHA * (raw - prev),
+                None => raw,
+            });
         } else {
             log::warn!(
-                "soil-moisture raw={raw} outside plausible range {}..={}; calibration unchanged",
+                "soil-moisture raw={raw} outside plausible range {}..={}; reading ignored",
                 self.min_plausible_raw,
                 self.max_plausible_raw
             );
         }
 
+        // Before any plausible reading there is nothing to average, so the
+        // faulty value itself gives the level.
+        let basis = self.smoothed_raw.unwrap_or(f32::from(raw));
+
         Ok(SoilMoistureReading {
             raw,
-            level: SoilMoistureLevel::new(self.to_percentage(raw)),
+            smoothed_raw: basis.round() as u16,
+            level: SoilMoistureLevel::new(self.to_percentage(basis)),
         })
     }
 
@@ -95,13 +105,14 @@ impl<'a> SoilMoisture<'a> {
         Ok(self.read_with_raw()?.level)
     }
 
-    pub fn to_percentage(&self, raw: u16) -> u8 {
-        let range = self.max_dry as f32 - self.max_wet as f32;
-        if range == 0.0 {
+    /// Linear map from `dry_raw` (0%) to `wet_raw` (100%), clamped.
+    /// Capacitive probes read lower when wetter.
+    fn to_percentage(&self, raw: f32) -> u8 {
+        let range = f32::from(self.dry_raw) - f32::from(self.wet_raw);
+        if range <= 0.0 {
             return 0;
         }
-        let diff = self.max_dry as f32 - raw as f32;
-        let percentage = (diff / range) * 100.0;
+        let percentage = (f32::from(self.dry_raw) - raw) / range * 100.0;
         percentage.clamp(0.0, 100.0) as u8
     }
 }
