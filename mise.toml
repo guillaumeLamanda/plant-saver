@@ -4,7 +4,9 @@
 #   version file), so the nightly is pinned in one place only.
 # - Cargo/ESP-IDF env (target, MCU, ESP_IDF_VERSION) lives in
 #   .cargo/config.toml so plain `cargo` works too.
-# - Override ESPFLASH_PORT for your machine in a gitignored mise.local.toml.
+# - espflash auto-detects the ESP32-C6 serial port (its name changes with the
+#   USB socket on macOS). To force one, set ESPFLASH_PORT under [env] in a
+#   gitignored mise.local.toml.
 
 [settings]
 idiomatic_version_file_enable_tools = ["rust"]
@@ -18,9 +20,6 @@ lockfile = true
 # Git hooks (hk.pkl); hk evaluates its config with pkl.
 hk ={ version = "2.11.1", workflow = "release.yml" }
 pkl = "0.32.2"
-
-[env]
-ESPFLASH_PORT = "/dev/cu.usbmodem1101"
 
 [tasks.build]
 description = "Build the firmware (debug)."
@@ -57,14 +56,17 @@ run = "hk install --mise"
 [tasks.run]
 description = "Build, flash to the ESP32-C6 and monitor (needs hardware)."
 alias = "dev"
+raw = true
 run = "cargo run"
 
 [tasks.monitor]
 description = "Attach to the ESP32-C6 serial output (needs hardware)."
+raw = true
 run = "espflash monitor"
 
 [tasks.test]
 description = "Build tests, flash them to the ESP32-C6 and run on-device (needs hardware)."
+raw = true
 run = "cargo test"
 
 [tasks."test:build"]

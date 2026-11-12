@@ -15,8 +15,11 @@ CONFIG_FREERTOS_HZ=1000
 CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y
 CONFIG_ESPTOOLPY_FLASHSIZE="8MB"
 
-# Flash mode for ESP32-C6 (QIO 80 MHz)
-CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
+# Flash mode: DIO 80 MHz. Must match the mode espflash writes into the image
+# header (DIO by default). With QIO here the app's direct flash reads, which NVS
+# uses, came back blank while writes landed: nothing persisted across reboots
+# (Matter fabrics, OpenThread SRP key, RF calibration).
+CONFIG_ESPTOOLPY_FLASHMODE_DIO=y
 CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
 
 # ESP32-C6 modem: enable WiFi component (required by esp-idf-matter wireless module gate)

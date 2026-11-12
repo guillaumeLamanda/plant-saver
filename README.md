@@ -18,7 +18,7 @@ mise install
 mise run build
 ```
 
-The serial port defaults to `/dev/cu.usbmodem1101`. Override it for your machine in a
+espflash auto-detects the board's serial port. To force a specific one, set it in a
 gitignored `mise.local.toml`:
 
 ```toml

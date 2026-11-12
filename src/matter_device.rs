@@ -19,9 +19,11 @@ use esp_idf_svc::bt::reduce_bt_memory;
 use esp_idf_svc::eventloop::EspSystemEventLoop;
 use esp_idf_svc::hal::modem::Modem;
 use esp_idf_svc::io::vfs::MountedEventfs;
-use esp_idf_svc::nvs::EspDefaultNvsPartition;
+use esp_idf_svc::nvs::{EspDefaultNvsPartition, EspNvs};
 
 use log::info;
+
+use rand::Rng as _;
 
 use static_cell::StaticCell;
 
@@ -116,15 +118,47 @@ pub async fn matter(
 
     let kv = stack.kv(&mut store);
 
-    let matter = pin!(stack.run_coex(
-        EspMatterThread::new(modem, sysloop, nvs, mounted_event_fs, stack),
-        &crypto,
-        (NODE, handler),
-        kv,
-        (),
-    ));
+    let matter = pin!(
+        stack.run_coex(
+            EspMatterThread::new(modem, sysloop, nvs.clone(), mounted_event_fs, stack)
+                .with_srp_host_eui64(srp_host_eui64(nvs)?),
+            &crypto,
+            (NODE, handler),
+            kv,
+            (),
+        )
+    );
 
     matter.await?;
 
     Ok(())
+}
+
+const SRP_NVS_NAMESPACE: &str = "plant_saver";
+const SRP_HOST_EUI64_KEY: &str = "srp_eui64";
+
+/// EUI-64 the Thread SRP host name is derived from.
+///
+/// By default the host name comes from the factory MAC, so it never changes, while the
+/// ECDSA key that owns it on the SRP server lives in NVS. A flash erase therefore
+/// keeps the name but drops the key, and the border router rejects every
+/// registration under that name (`Duplicated`) until the old key lease expires,
+/// up to 14 days. The device then can't be found over operational mDNS, and
+/// commissioning fails. Here a random EUI-64 is generated once and stored in NVS
+/// next to the key, so an erase resets both.
+fn srp_host_eui64(nvs: EspDefaultNvsPartition) -> Result<[u8; 8], anyhow::Error> {
+    let nvs = EspNvs::new(nvs, SRP_NVS_NAMESPACE, true)?;
+
+    let mut eui64 = [0; 8];
+    if let Some(stored) = nvs.get_blob(SRP_HOST_EUI64_KEY, &mut eui64)?
+        && stored.len() == eui64.len()
+    {
+        return Ok(eui64);
+    }
+
+    rand::rng().fill_bytes(&mut eui64);
+    nvs.set_blob(SRP_HOST_EUI64_KEY, &eui64)?;
+    info!("Generated a new SRP host EUI-64");
+
+    Ok(eui64)
 }

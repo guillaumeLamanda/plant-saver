@@ -10,7 +10,7 @@ Every workflow — local and CI — is a mise task; `mise tasks` lists them. Run
 
 Git hooks are managed by hk (`hk.pkl`), installed once per clone with `mise run hooks:install`. `pre-commit` runs `fmt` (and formats `*.pkl`) and stages the fixes; `pre-push` runs `fmt:check` + `clippy`. The release build stays CI-only. Skip the hooks with `HK=0`.
 
-Tasks that **flash hardware** (`run`, `monitor`, `test`, `erase`, and plain `cargo run` / `cargo test`) need a physical ESP32-C6 on `ESPFLASH_PORT` (default in `mise.toml`; override per machine in the gitignored `mise.local.toml`). To check that tests compile without hardware, use `mise run test:build`.
+Tasks that **flash hardware** (`run`, `monitor`, `test`, `erase`, and plain `cargo run` / `cargo test`) need a physical ESP32-C6 plugged in. espflash auto-detects its port (macOS renames it per USB socket, so no default is hardcoded); force one with `ESPFLASH_PORT` in the gitignored `mise.local.toml`. To check that tests compile without hardware, use `mise run test:build`.
 
 ## Toolchain & env
 
@@ -37,7 +37,7 @@ Tasks that **flash hardware** (`run`, `monitor`, `test`, `erase`, and plain `car
 - `src/sensors/mod.rs` — `SoilMoisture` (calibration → 0–100 %, adaptive bounds), `SoilMoistureLevel`.
 - `src/matter_device.rs` — Thread+BLE coex Matter stack using **test DACs** (real VID/PID provisioning not yet wired; see reserved `MatterConfig` in `config.rs`). Endpoint 1 reserved for humidity, 2+ for a watering actuator.
 - `src/config.rs` — `SoilMoistureConfig` (dry=4095, wet=1500, threshold=65 %, DB_12 atten) and reserved `MatterConfig`.
-- `sdkconfig.defaults` — 8 MB flash, **Bluedroid** BLE (not NimBLE), OpenThread, FreeRTOS 1000 Hz. Editing it changes the ESP-IDF build.
+- `sdkconfig.defaults` — 8 MB flash, **DIO** flash mode, **Bluedroid** BLE (not NimBLE), OpenThread, FreeRTOS 1000 Hz. Editing it changes the ESP-IDF build. The flash mode must match what espflash writes (DIO by default). With QIO, NVS reads came back blank, so nothing persisted across reboots.
 - `partitions.csv` — 3 MB factory app layout, **not currently wired in**: neither `sdkconfig.defaults` nor espflash references it, so flashing uses espflash's default table.
 - `build.rs` — declares the `esp32c6` cfg and calls `embuild::espidf::sysenv::output()`; esp-idf-sys does the rest.
 
