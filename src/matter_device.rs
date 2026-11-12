@@ -5,6 +5,7 @@ use std::sync::Arc;
 use esp_idf_matter::init_async_io;
 use esp_idf_matter::matter::crypto::{Crypto, default_crypto};
 use esp_idf_matter::matter::dm::clusters::desc::{self, ClusterHandler as _, DescHandler};
+use esp_idf_matter::matter::dm::clusters::identify;
 use esp_idf_matter::matter::dm::devices::test::{
     DAC_PRIVKEY, TEST_DEV_ATT, TEST_DEV_COMM, TEST_DEV_DET,
 };
@@ -34,9 +35,10 @@ const BUMP_SIZE: usize = 17000;
 use esp_idf_matter::wireless::{EspMatterThread, EspThreadMatterStack};
 static MATTER_STACK: StaticCell<EspThreadMatterStack<BUMP_SIZE, ()>> = StaticCell::new();
 
+// Revision 3 is the Humidity Sensor device type revision in Matter 1.6.
 const DEV_TYPE_HUMIDITY_SENSOR: DeviceType = DeviceType {
     dtype: 0x0307,
-    drev: 1,
+    drev: 3,
 };
 
 const NODE: Node = Node {
@@ -45,7 +47,11 @@ const NODE: Node = Node {
         Endpoint::new(
             HUMIDITY_ENDPOINT_ID,
             devices!(DEV_TYPE_HUMIDITY_SENSOR),
-            clusters!(DescHandler::CLUSTER, humidity::HUMIDITY_CLUSTER),
+            clusters!(
+                DescHandler::CLUSTER,
+                identify::CLUSTER,
+                humidity::HUMIDITY_CLUSTER
+            ),
         ),
     ],
 };
@@ -85,6 +91,10 @@ pub async fn matter(
         .chain(
             |e, c| e == HUMIDITY_ENDPOINT_ID && c == DescHandler::CLUSTER.id,
             Async(desc::DescHandler::new(Dataver::new_rand(&mut weak_rand)).adapt()),
+        )
+        .chain(
+            |e, c| e == HUMIDITY_ENDPOINT_ID && c == identify::CLUSTER.id,
+            Async(identify::IdentifyHandler::new(Dataver::new_rand(&mut weak_rand)).adapt()),
         );
 
     let mut store = EspKvBlobStore::new_default(nvs.clone())?;
