@@ -36,25 +36,18 @@ Run `mise tasks` for the full list.
 | `mise run check` | `cargo check` (fast) |
 | `mise run clippy` | clippy, warnings are errors (as in CI) |
 | `mise run fmt` / `fmt:check` | format / check formatting |
-| `mise run ci` | every CI check: `fmt:check`, `clippy`, `release` |
+| `mise run ci` | every CI check: `fmt:check`, `clippy`, `test:host`, `release` |
 | `mise run run` (alias `dev`) | build, flash and monitor (hardware) |
 | `mise run monitor` | serial output only (hardware) |
 | `mise run test` | flash and run tests on-device (hardware) |
 | `mise run test:build` | compile tests without flashing |
+| `mise run test:host` | run the `soil-moisture` crate's unit tests on the host |
 | `mise run erase` | erase the whole flash, wiping Matter commissioning (hardware) |
 
-## Ressources
+## Resources
 
-[Pants API - Trefle](https://docs.trefle.io/reference/#tag/Plants/operation/getPlant)
+[Plants API - Trefle](https://docs.trefle.io/reference/#tag/Plants/operation/getPlant)
 
-- Rust cross compilations
-  - <https://sigmaris.info/blog/2019/02/cross-compiling-rust-on-mac-os-for-an-arm-linux-router/>
-  - <https://wiki.osdev.org/Raspberry_Pi_Bare_Bones>
-  - <https://hackernoon.com/building-a-wireless-thermostat-in-rust-for-raspberry-pi-part-2>
-  - <https://amritrathie.vercel.app/posts/2020/03/06/cross-compiling-rust-from-macos-to-raspberry-pi/>
-- Raspberry GPIO
-  - <https://www.etechnophiles.com/raspberry-pi-zero-gpio-pinout-specifications-programming-language/>
-  - <https://docs.rs/gpio/latest/gpio/>
 - Matter (smart home universal protocol)
   - <https://project-chip.github.io/connectedhomeip-doc/index.html>
   - <https://github.com/project-chip/connectedhomeip>

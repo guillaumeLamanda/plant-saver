@@ -1,3 +1,6 @@
+[workspace]
+members = [".", "crates/soil-moisture"]
+
 [package]
 name = "plant-saver"
 version = "0.1.0"
@@ -24,6 +27,7 @@ esp-idf-svc = { version = "0.53", default-features = false, features = [
     "experimental",
     "critical-section",
 ] }
+soil-moisture = { path = "crates/soil-moisture" }
 anyhow = { version = "1", default-features = false }
 rs-matter = { version = "0.4.1", default-features = false }
 rs-matter-stack = { version = "0.3.1", default-features = false }

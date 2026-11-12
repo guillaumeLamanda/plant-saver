@@ -1,7 +1,8 @@
 //! Matter `RelativeHumidityMeasurement` cluster (id 0x0405) on endpoint 1.
 //!
 //! `measured_value` reads the latest `SoilMoistureLevel` (0–100) from a
-//! [`SharedSoilMoistureLevel`] that the main sensor loop updates. When the
+//! [`SharedSoilMoistureLevel`] that the main sensor loop updates, and is null
+//! while there is no level (faulty or not-yet-read probe). When the
 //! level changes, the handler's background task bumps the cluster's data
 //! version and notifies the data model, so subscriptions get a report and
 //! data-version-filtered reads return the new value instead of "unchanged".
@@ -18,6 +19,7 @@ use esp_idf_matter::matter::utils::sync::Notification;
 use esp_idf_matter::matter::utils::sync::blocking::raw::StdRawMutex;
 
 use rs_matter::with;
+use soil_moisture::SoilMoistureLevel;
 
 pub use esp_idf_matter::matter::dm::clusters::decl::relative_humidity_measurement::*;
 
@@ -32,11 +34,13 @@ pub const HUMIDITY_ENDPOINT_ID: u16 = 1;
 pub const HUMIDITY_CLUSTER: Cluster<'static> =
     FULL_CLUSTER.with_attrs(with!(required)).with_cmds(with!());
 
-/// The latest `SoilMoistureLevel` (0–100), shared between the sensor loop
-/// (writer, plain thread) and the Matter handler (reader, async task on the
-/// Matter thread).
+/// The latest `SoilMoistureLevel` (0–100), or `None` when there is no
+/// trustworthy reading (before the first plausible one, or after the probe
+/// faulted), shared between the sensor loop (writer, plain thread) and the
+/// Matter handler (reader, async task on the Matter thread).
 ///
-/// `set` wakes the handler only when the value actually changes. The
+/// Stored in a single atomic: `NONE` (`u8::MAX`, outside 0–100) stands for
+/// `None`. `set` wakes the handler only when the value actually changes. The
 /// notification uses a `std` mutex because the writer and the reader live on
 /// different threads (rs-matter's default raw mutex is not thread-safe here).
 pub struct SharedSoilMoistureLevel {
@@ -44,20 +48,31 @@ pub struct SharedSoilMoistureLevel {
     changed: Notification<StdRawMutex>,
 }
 
+/// Sentinel for "no level"; a valid level is at most 100.
+const NONE: u8 = u8::MAX;
+
+fn encode(level: Option<SoilMoistureLevel>) -> u8 {
+    level.map_or(NONE, |l| l.value())
+}
+
 impl SharedSoilMoistureLevel {
-    pub fn new(value: u8) -> Self {
+    pub fn new(level: Option<SoilMoistureLevel>) -> Self {
         Self {
-            value: AtomicU8::new(value),
+            value: AtomicU8::new(encode(level)),
             changed: Notification::new(),
         }
     }
 
-    pub fn get(&self) -> u8 {
-        self.value.load(Ordering::Relaxed)
+    pub fn get(&self) -> Option<SoilMoistureLevel> {
+        match self.value.load(Ordering::Relaxed) {
+            NONE => None,
+            value => Some(SoilMoistureLevel::new(value)),
+        }
     }
 
-    /// Store `value`; wake the Matter handler if it differs from the last one.
-    pub fn set(&self, value: u8) {
+    /// Store `level`; wake the Matter handler if it differs from the last one.
+    pub fn set(&self, level: Option<SoilMoistureLevel>) {
+        let value = encode(level);
         if self.value.swap(value, Ordering::Relaxed) != value {
             self.changed.notify();
         }
@@ -67,7 +82,9 @@ impl SharedSoilMoistureLevel {
 /// Handler for the `RelativeHumidityMeasurement` cluster.
 ///
 /// `measured_value` returns the latest `SoilMoistureLevel` (0–100) from the
-/// shared `level` cell; `min_measured_value` is 0; `max_measured_value` is 100.
+/// shared `level` cell, or null when there is none (the probe is faulty or has
+/// not produced a plausible reading yet); `min_measured_value` is 0;
+/// `max_measured_value` is 100.
 /// Each read fetches the current value — nothing is cached in the handler.
 /// The background `run` task reports changes (see the module docs).
 ///
@@ -108,7 +125,10 @@ impl ClusterHandler for RelativeHumidityHandler {
     }
 
     fn measured_value(&self, _ctx: impl ReadContext) -> Result<Nullable<u16>, Error> {
-        Ok(Nullable::some(self.level.get() as u16 * HUNDREDTHS))
+        Ok(match self.level.get() {
+            Some(level) => Nullable::some(u16::from(level.value()) * HUNDREDTHS),
+            None => Nullable::none(),
+        })
     }
 
     fn min_measured_value(&self, _ctx: impl ReadContext) -> Result<Nullable<u16>, Error> {

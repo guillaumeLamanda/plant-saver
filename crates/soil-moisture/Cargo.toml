@@ -1,0 +1,8 @@
+[package]
+name = "soil-moisture"
+version = "0.1.0"
+authors = ["Guillaume Lamanda <guillaume.lamanda@gmail.com>"]
+edition = "2024"
+description = "Soil moisture reading logic (median, smoothing, plausibility, calibration), free of any hardware dependency."
+
+[dependencies]

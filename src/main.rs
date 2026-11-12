@@ -18,9 +18,15 @@ use esp_idf_svc::hal::modem::Modem;
 use esp_idf_svc::hal::task::block_on;
 use esp_idf_svc::hal::task::thread::ThreadSpawnConfiguration;
 
-use crate::config::SoilMoistureConfig;
+use soil_moisture::{SoilMoisture, SoilMoistureConfig};
+
+use crate::config::SOIL_MOISTURE_ATTENUATION;
 use crate::matter_clusters::humidity::SharedSoilMoistureLevel;
-use crate::sensors::SoilMoisture;
+use crate::sensors::EspAdc;
+
+/// Time to let the logs flush after the Matter stack dies, and to keep a
+/// persistent failure from becoming a tight reboot loop.
+const MATTER_RESTART_DELAY: Duration = Duration::from_secs(10);
 
 fn main() {
     esp_idf_svc::log::EspLogger::initialize_default();
@@ -30,19 +36,21 @@ fn main() {
 
     let adc = AdcDriver::new(peripherals.adc1).unwrap();
 
-    let soil_moisture_config = SoilMoistureConfig::default();
-
+    // Curve fitting only feeds `raw_to_mv` (the `mv=` log); the level is
+    // computed from raw counts, which `read_raw` returns uncalibrated.
     let adc_channel_config = AdcChannelConfig {
-        attenuation: soil_moisture_config.attenuation,
-        calibration: Calibration::None,
+        attenuation: SOIL_MOISTURE_ATTENUATION,
+        calibration: Calibration::Curve,
         ..Default::default()
     };
     let channel = AdcChannelDriver::new(adc, peripherals.pins.gpio1, &adc_channel_config).unwrap();
-    let mut soil_moisture = SoilMoisture::new(soil_moisture_config, channel);
+    let mut soil_moisture = SoilMoisture::new(SoilMoistureConfig::default(), EspAdc::new(channel));
 
-    let level = Arc::new(SharedSoilMoistureLevel::new(
-        soil_moisture.read().map(|v| v.value()).unwrap_or(0),
-    ));
+    // A failed or implausible boot reading leaves the level `None`.
+    if let Err(e) = soil_moisture.read() {
+        log::error!("ADC read error at boot: {e:?}");
+    }
+    let level = Arc::new(SharedSoilMoistureLevel::new(soil_moisture.level()));
     let modem = peripherals.modem;
 
     let level_for_matter = level.clone();
@@ -54,9 +62,16 @@ fn main() {
     thread::Builder::new()
         .stack_size(20 * 1024)
         .spawn(move || {
-            if let Err(e) = run_matter(modem, level_for_matter) {
-                log::error!("Matter aborted: {e:?}");
+            // The stack is not supposed to return; whether it errors or ends,
+            // the device is off the network, so restart rather than keep
+            // running the sensor loop alone.
+            match run_matter(modem, level_for_matter) {
+                Err(e) => log::error!("Matter aborted: {e:?}"),
+                Ok(()) => log::error!("Matter stack returned unexpectedly"),
             }
+            log::error!("Restarting in {}s", MATTER_RESTART_DELAY.as_secs());
+            thread::sleep(MATTER_RESTART_DELAY);
+            esp_idf_svc::hal::reset::restart();
         })
         .unwrap();
 
@@ -67,21 +82,31 @@ fn main() {
     };
 
     loop {
-        match soil_moisture.read_with_raw() {
+        let result = soil_moisture.read();
+        // Publish in both arms: a fault keeps the last level until the fault
+        // limit, then clears it.
+        level.set(soil_moisture.level());
+        match result {
             Ok(reading) => {
-                let value = reading.level.value();
-                level.set(value);
-                // `raw` is this poll's value, unsmoothed: read it when
-                // measuring the dry/wet bounds in `config.rs`.
+                // `raw` is this poll's value, unsmoothed; `mv` is the same
+                // value calibrated. Re-measure the dry/wet bounds from them.
                 let (wet, dry) = soil_moisture.bounds();
+                let mv = soil_moisture.adc().raw_to_mv(reading.raw);
+                let moisture = reading.level.map(|l| l.value());
+                if !reading.plausible {
+                    log::warn!("soil-moisture raw={} outside plausible range", reading.raw);
+                }
                 log::info!(
-                    "moisture={value}% raw={} smoothed={} bounds(wet={wet}, dry={dry})",
+                    "moisture={moisture:?}% raw={} mv={mv:?} smoothed={:?} bounds(wet={wet}, dry={dry})",
                     reading.raw,
                     reading.smoothed_raw
                 );
             }
             Err(e) => {
-                log::error!("ADC read error: {e:?}");
+                log::error!(
+                    "ADC read error: {e:?} (moisture={:?}%)",
+                    soil_moisture.level().map(|l| l.value())
+                );
             }
         }
         std::thread::sleep(poll_interval);

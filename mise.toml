@@ -45,9 +45,17 @@ run = "cargo fmt --all"
 description = "Check formatting (CI)."
 run = "cargo fmt --all -- --check"
 
+[tasks."test:host"]
+description = "Run the hardware-free unit tests (soil-moisture crate) on the host."
+# .cargo/config.toml defaults to the riscv target with build-std; `--target`
+# with the host triple (read from rustc, so macOS and Linux both work)
+# overrides the target. build-std stays on and rebuilds std for the host,
+# which works because rust-toolchain.toml installs rust-src.
+run = 'cargo test -p soil-moisture --target "$(rustc -vV | sed -n "s/^host: //p")"'
+
 [tasks.ci]
-description = "Run every CI check locally: fmt, clippy, release build."
-depends = ["fmt:check", "clippy", "release"]
+description = "Run every CI check locally: fmt, clippy, release build, host tests."
+depends = ["fmt:check", "clippy", "release", "test:host"]
 
 [tasks."hooks:install"]
 description = "Install the hk git hooks (pre-commit: fmt; pre-push: fmt check + clippy)."

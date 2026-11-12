@@ -8,11 +8,11 @@ The water content of the soil around the plant. Expressed as a percentage: 0% is
 
 ## SoilMoistureLevel
 
-A percentage value (0–100) representing the current soil moisture. The canonical output of the soil-moisture reading module.
+A percentage value (0–100) representing the current soil moisture. The canonical output of the soil-moisture reading module. It can be absent: before the first plausible reading, and when the sensor is faulty.
 
 ## SoilMoisture
 
-The module that reads the soil moisture sensor and produces a `SoilMoistureLevel`. It owns calibration, unit conversion, and clamping to the 0–100 range. It is not a hardware driver; it sits behind an ADC adapter seam.
+The module that reads the soil moisture sensor and produces a `SoilMoistureLevel`. It owns calibration, unit conversion, clamping to the 0–100 range, and deciding when a reading is implausible and the level is absent. It is not a hardware driver; it sits behind an ADC adapter seam.
 
 ## ADC adapter
 
