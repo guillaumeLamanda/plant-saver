@@ -1,9 +1,9 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "config:recommended",
-    "helpers:pinGitHubActionDigests"
+    "github>guillaumeLamanda/progenes-tooling"
   ],
+  "timezone": "Europe/Paris",
   "packageRules": [
     {
       "description": "The nightly is pinned on purpose (newer ones break std for espidf); bump it by hand after testing.",
@@ -11,9 +11,10 @@
       "enabled": false
     },
     {
-      "description": "Matter / ESP-IDF crates move together; review them as one PR.",
+      "description": "Matter / ESP-IDF crates move together; review them as one PR. Never automerge: CI only builds, and 0.x minor bumps can break pairing on the device.",
       "matchPackageNames": ["esp-idf-*", "rs-matter*", "embuild", "embassy-*"],
-      "groupName": "esp-idf and matter crates"
+      "groupName": "esp-idf and matter crates",
+      "automerge": false
     }
   ]
 }
