@@ -18,8 +18,8 @@ lockfile = true
 "github:esp-rs/espflash" = "v4.7.0"
 "github:esp-rs/embuild" = { version = "0.3.2", version_prefix = "ldproxy-v", bin = "ldproxy" }
 # Git hooks (hk.pkl); hk evaluates its config with pkl.
-hk ={ version = "2.11.1", workflow = "release.yml" }
-pkl = "0.32.2"
+hk ={ version = "2.12.0", workflow = "release.yml" }
+pkl = "0.33.0"
 
 [tasks.build]
 description = "Build the firmware (debug)."
