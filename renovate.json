@@ -11,6 +11,12 @@
       "enabled": false
     },
     {
+      "description": "libc > 0.2.186 renames the espidf stat fields (st_ctime -> st_ctim) and breaks rustix 0.38; held in Cargo.lock until rustix catches up.",
+      "matchManagers": ["cargo"],
+      "matchPackageNames": ["libc"],
+      "enabled": false
+    },
+    {
       "description": "Matter / ESP-IDF crates move together; review them as one PR. Never automerge: CI only builds, and 0.x minor bumps can break pairing on the device.",
       "matchPackageNames": ["esp-idf-*", "rs-matter*", "embuild", "embassy-*"],
       "groupName": "esp-idf and matter crates",
