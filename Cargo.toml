@@ -19,7 +19,7 @@ opt-level = "z"
 
 [dependencies]
 log = { version = "0.4", default-features = false }
-esp-idf-svc = { version = "0.53", default-features = false, features = [
+esp-idf-svc = { version = "0.54", default-features = false, features = [
     "std",
     "binstart",
     "native",
@@ -29,8 +29,8 @@ esp-idf-svc = { version = "0.53", default-features = false, features = [
 ] }
 soil-moisture = { path = "crates/soil-moisture" }
 anyhow = { version = "1", default-features = false }
-rs-matter = { version = "0.4.1", default-features = false }
-rs-matter-stack = { version = "0.3.1", default-features = false }
+rs-matter = { version = "0.5.0", default-features = false }
+rs-matter-stack = { version = "0.5.0", default-features = false }
 esp-idf-matter = "0.1"
 static_cell = "2.1"
 rand = "0.10"
